@@ -1,0 +1,12 @@
+﻿<Application x:Class="WinFormsApp1.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:WinFormsApp1.Desktop">
+    <Application.Resources>
+        <Style TargetType="{x:Type FrameworkElement}">
+            <Setter Property="ToolTipService.InitialShowDelay" Value="100" />
+            <Setter Property="ToolTipService.BetweenShowDelay" Value="100" />
+            <Setter Property="ToolTipService.ShowDuration" Value="300" />
+        </Style>
+    </Application.Resources>
+</Application>

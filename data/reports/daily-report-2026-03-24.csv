@@ -1,0 +1,192 @@
+﻿ProcessName,Foreground,Background,DownloadBytes,UploadBytes,IoReadBytes,IoWriteBytes
+"svchost",0,6779395,150447,296896,0,0
+"chrome",26499,4269308,709041,378602,0,0
+"msedgewebview2",0,3740039,7584,9550,0,0
+"conhost",0,1905414,0,0,0,0
+"CefSharp.BrowserSubprocess",0,1700063,0,0,0,0
+"RuntimeBroker",0,1389694,0,0,0,0
+"taskhostw",0,963323,0,0,0,0
+"MSBuild",0,882685,0,0,0,0
+"dllhost",0,773782,0,0,0,0
+"powershell",0,596527,0,0,0,0
+"Razer Synapse Service Process",0,594953,472,1597,0,0
+"Tai",0,594953,1129,4,0,0
+"SystrayComponent",0,594953,160,160,0,0
+"Razer Synapse 3",0,594953,256,0,0,0
+"ctfmon",0,594953,0,0,0,0
+"IGCC",0,594953,0,0,0,0
+"IGCCTray",0,594953,0,0,0,0
+"Magpie",0,594953,0,0,0,0
+"PrintDisp",0,594953,0,0,0,0
+"ProcessLasso",0,594953,0,0,0,0
+"Razer Central",0,594953,0,0,0,0
+"StartMenuExperienceHost",0,594953,0,0,0,0
+"VBCSCompiler",0,594953,0,0,0,0
+"WinFormsApp1.Desktop",408311,186642,0,0,0,0
+"UPSecurityInput",0,544035,0,0,0,0
+"audiodg",0,528303,0,0,0,0
+"OpenConsole",0,527858,0,0,0,0
+"ChsIME",0,523644,0,0,0,0
+"PerfWatson2",0,515356,3508,79368,0,0
+"app",2462,512894,28407,14792,0,0
+"codex",0,515356,5326,2590,0,0
+"baidupinyin",0,515356,647,1581,0,0
+"explorer",13168,502188,0,230,0,0
+"copilot-language-server",0,515356,87,63,0,0
+"ApplicationFrameHost",7575,507781,0,0,0,0
+"CastSrv",0,515356,0,0,0,0
+"clash-verge",0,515356,0,0,0,0
+"CompPkgSrv",0,515356,0,0,0,0
+"D4WebServer_wss_ABC",0,515356,0,0,0,0
+"DBSvr_ABC",0,515356,0,0,0,0
+"devenv",2475,512881,0,0,0,0
+"DevHub",0,515356,0,0,0,0
+"LivePreviewSurface",0,515356,0,0,0,0
+"LockApp",0,515356,0,0,0,0
+"node",0,515356,0,0,0,0
+"RAVCpl64",0,515356,0,0,0,0
+"RtkAudUService64",0,515356,0,0,0,0
+"rundll32",0,515356,0,0,0,0
+"RzTHX0529",0,515356,0,0,0,0
+"SDXHelper",0,515356,0,0,0,0
+"SearchApp",0,515356,0,0,0,0
+"SecurityHealthSystray",0,515356,0,0,0,0
+"ShellExperienceHost",0,515356,0,0,0,0
+"sihost",0,515356,0,0,0,0
+"SystemSettingsBroker",0,515356,0,0,0,0
+"TextInputHost",0,515356,0,0,0,0
+"UserOOBEBroker",0,515356,0,0,0,0
+"VSHelper",0,515356,0,0,0,0
+"WindowsTerminal",4884,510472,0,0,0,0
+"bitsumsessionagent",0,434185,0,0,0,0
+"MusNotifyIcon",0,434185,0,0,0,0
+"Video.UI",0,434185,0,0,0,0
+"ServiceHub.IntellicodeModelService",0,433752,0,0,0,0
+"aTrustAgent",0,325117,38661,38517,0,0
+"mysqld",0,243946,0,0,0,0
+"NVDisplay.Container",0,243946,0,0,0,0
+"WmiPrvSE",0,243946,0,0,0,0
+"SystemSettings",0,210754,0,0,0,0
+"verge-mihomo",0,162775,1396467,1319865,0,0
+"filec",0,162775,40200,1435,0,0
+"RazerCentralService",0,162775,1088,11495,0,0
+"GCUBridge",0,162775,160,160,0,0
+"SSUService",0,162775,0,211,0,0
+"AggregatorHost",0,162775,0,0,0,0
+"dwm",0,162775,0,0,0,0
+"Everything",0,162775,0,0,0,0
+"fontdrvhost",0,162775,0,0,0,0
+"GameManagerService",0,162775,0,0,0,0
+"GCUService",0,162775,0,0,0,0
+"lsass",0,162775,0,0,0,0
+"Memory Compression",0,162775,0,0,0,0
+"MpDefenderCoreService",0,162775,0,0,0,0
+"MsMpEng",0,162775,0,0,0,0
+"NisSrv",0,162775,0,0,0,0
+"OfficeClickToRun",0,162775,0,0,0,0
+"OneApp.IGCC.WinService",0,162775,0,0,0,0
+"PresentationFontCache",0,162775,0,0,0,0
+"ProcessGovernor",0,162775,0,0,0,0
+"QQProtect",0,162775,0,0,0,0
+"Razer Synapse Service",0,162775,0,0,0,0
+"Registry",0,162775,0,0,0,0
+"RzSDKServer",0,162775,0,0,0,0
+"SangforPWEx",0,162775,0,0,0,0
+"SangforUDProtectEx",0,162775,0,0,0,0
+"SearchIndexer",0,162775,0,0,0,0
+"Secure System",0,162775,0,0,0,0
+"SecurityHealthService",0,162775,0,0,0,0
+"services",0,162775,0,0,0,0
+"spoolsv",0,162775,0,0,0,0
+"sqlwriter",0,162775,0,0,0,0
+"StandardCollector.Service",0,162775,0,0,0,0
+"TFSPEQService",0,162775,0,0,0,0
+"TiWorker",0,162775,0,0,0,0
+"TrustedInstaller",0,162775,0,0,0,0
+"VSSrv",0,162775,0,0,0,0
+"winlogon",0,162775,0,0,0,0
+"WMIRegistrationService",0,162775,0,0,0,0
+"System",0,160304,1597,728,0,0
+"SearchProtocolHost",0,154755,0,0,0,0
+"MyWhoosh",0,142546,0,0,0,0
+"SearchFilterHost",0,135369,0,0,0,0
+"Taskmgr",122029,0,0,0,0,0
+"csrss",0,114874,0,0,0,0
+"UPService",0,102620,0,0,0,0
+"clash-verge-service",0,81604,0,0,0,0
+"Creative.UWPRPCService",0,81604,0,0,0,0
+"dasHost",0,81604,0,0,0,0
+"DBMon_ABC",0,81604,0,0,0,0
+"DBSer_ABC",0,81604,0,0,0,0
+"jhi_service",0,81604,0,0,0,0
+"LsaIso",0,81604,0,0,0,0
+"PrintCtrl",0,81604,0,0,0,0
+"RzAppManager",0,81604,0,0,0,0
+"RzBTLEManager",0,81604,0,0,0,0
+"RzChromaConnectServer",0,81604,0,0,0,0
+"RzChromaStreamServer",0,81604,0,0,0,0
+"RzDeviceManager",0,81604,0,0,0,0
+"RzDiagnostic",0,81604,0,0,0,0
+"RzIoTDeviceManager",0,81604,0,0,0,0
+"RzSDKService",0,81604,0,0,0,0
+"RzSmartlightingDeviceManager",0,81604,0,0,0,0
+"smss",0,81604,0,0,0,0
+"srvstub",0,81604,0,0,0,0
+"TbtP2pShortcutService",0,81604,0,0,0,0
+"wininit",0,81604,0,0,0,0
+"wlanext",0,81604,0,0,0,0
+"WUDFHost",0,81604,0,0,0,0
+"Application Frame Host",0,79597,0,0,0,0
+"Casting protocol connection listener",0,79597,0,0,0,0
+"Clash Verge",0,79597,0,0,0,0
+"Codex Tools",0,79597,0,0,0,0
+"codex-windows-sandbox",0,79597,0,0,0,0
+"COM Surrogate",0,79597,0,0,0,0
+"Component Package Support Server",0,79597,0,0,0,0
+"Console Window and PTY Host (Open Source)",0,79597,0,0,0,0
+"Crashpad Handler",0,79597,0,0,0,0
+"DevHub.exe",0,79597,0,0,0,0
+"LivePreviewSurface.exe",0,79597,0,0,0,0
+"LockApp.exe",0,79597,0,0,0,0
+"Microsoft Edge WebView2",0,79597,0,0,0,0
+"Microsoft Office SDX Helper",0,79597,0,0,0,0
+"Microsoft Visual Studio",0,79597,0,0,0,0
+"Microsoft® Windows® Operating System",0,79597,0,0,0,0
+"MSBuild.exe",0,79597,0,0,0,0
+"MusNotifyIcon.exe",0,79597,0,0,0,0
+"Node.js JavaScript Runtime",0,79597,0,0,0,0
+"OnKeySvr",0,79597,0,0,0,0
+"PerfWatson2.exe",0,79597,0,0,0,0
+"Process Lasso Session Agent",0,79597,0,0,0,0
+"Razer THX0529 Helper",0,79597,0,0,0,0
+"Realtek HD Audio Universal Service",0,79597,0,0,0,0
+"Realtek高清晰音频管理器",0,79597,0,0,0,0
+"Runtime Broker",0,79597,0,0,0,0
+"Search application",0,79597,0,0,0,0
+"ServiceHub.IntellicodeModelService.exe",0,79597,0,0,0,0
+"Shell Infrastructure Host",0,79597,0,0,0,0
+"System Settings Broker",0,79597,0,0,0,0
+"User OOBE Broker",0,79597,0,0,0,0
+"Video Application",0,79597,0,0,0,0
+"VisiSonics Windows Helper App",0,79597,0,0,0,0
+"Windows PowerShell",0,79597,0,0,0,0
+"Windows Security notification icon",0,79597,0,0,0,0
+"Windows Shell Experience Host",0,79597,0,0,0,0
+"Windows Terminal Host",0,79597,0,0,0,0
+"Windows 主进程 (Rundll32)",0,79597,0,0,0,0
+"Windows 任务的主机进程",0,79597,0,0,0,0
+"Windows 服务主进程",0,79597,0,0,0,0
+"Windows 资源管理器",0,79597,0,0,0,0
+"天地融websocket服务",0,79597,0,0,0,0
+"控制台窗口主机",0,79597,0,0,0,0
+"百度中文输入法服务程序",0,79597,0,0,0,0
+"设置",0,79597,0,0,0,0
+"crashpad_handler",0,62949,0,0,0,0
+"Google Chrome",0,51754,0,0,0,0
+"backgroundTaskHost",0,40065,0,0,0,0
+"Background Task Host",0,21031,0,0,0,0
+"Google Updater (x64)",0,10686,0,0,0,0
+"sppsvc",0,8351,0,0,0,0
+"frpc",0,7625,0,221,0,0
+"winsw",0,7625,0,0,0,0
+"updater",0,7000,0,0,0,0

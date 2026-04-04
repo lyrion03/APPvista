@@ -1,0 +1,10 @@
+{
+  "SelectedMetricIds": [
+    "focus_duration",
+    "cpu",
+    "working_set",
+    "realtime_traffic",
+    "daily_io_total",
+    "realtime_io"
+  ]
+}
