@@ -383,12 +383,10 @@
 
                                 <StackPanel Grid.Column="0"
                                             Margin="0,0,12,0">
-                                    <TextBlock Foreground="#A9C0B2"
-                                               FontSize="13"
-                                               Text="所选区间总览" />
-                                    <TextBlock Margin="0,8,0,0"
+                                    <TextBlock Margin="10,0,0,0"
                                                Foreground="#FFF7EC"
-                                               FontSize="15"
+                                               FontSize="18"
+                                               MaxHeight="46"
                                                FontWeight="SemiBold"
                                                Text="{Binding HistorySummaryCaption}"
                                                TextWrapping="Wrap" />
@@ -1822,7 +1820,7 @@
                                                             BorderThickness="1"
                                                             CornerRadius="12">
                                                         <TextBox MinWidth="180"
-                                                                 Padding="12,8"
+                                                                 Padding="12,-2"
                                                                  Background="Transparent"
                                                                  BorderThickness="0"
                                                                  FontSize="15"

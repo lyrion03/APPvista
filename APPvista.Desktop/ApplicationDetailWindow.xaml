@@ -600,13 +600,7 @@
                     <StackPanel>
                         <TextBlock Foreground="#7B7F74"
                                    FontSize="13"
-                                   Text="使用习惯分析" />
-                        <TextBlock Margin="0,10,0,0"
-                                   FontSize="24"
-                                   FontWeight="SemiBold"
-                                   Foreground="#223B35"
-                                   Text="{Binding HabitInsight}"
-                                   TextWrapping="Wrap" />
+                                   Text="前后台概况" />
                         <Grid Margin="0,18,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -661,23 +655,6 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Margin="0,18,0,0"
-                        Padding="22"
-                        Background="#FFFDF9"
-                        CornerRadius="24">
-                    <StackPanel>
-                        <TextBlock Foreground="#7B7F74"
-                                   FontSize="13"
-                                   Text="性能分析" />
-                        <TextBlock Margin="0,10,0,0"
-                                   FontSize="24"
-                                   FontWeight="SemiBold"
-                                   Foreground="#223B35"
-                                   Text="{Binding PerformanceInsight}"
-                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 
@@ -1096,14 +1073,9 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Foreground="#7B7F74"
-                                               FontSize="13"
-                                               Text="{Binding HistorySummaryCaption}" />
-                                    <TextBlock Margin="0,10,0,0"
-                                               FontSize="24"
-                                               FontWeight="SemiBold"
-                                               Foreground="#223B35"
+                                <StackPanel VerticalAlignment="Bottom">
+                                    <TextBlock Foreground="#506057"
+                                               FontSize="14"
                                                Text="{Binding HistoryDimensionTitle}" />
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="#506057"
@@ -1115,15 +1087,54 @@
                                                Text="{Binding HistoryActiveDaysDisplay}" />
                                 </StackPanel>
 
-                                <Grid Grid.Column="1">
-                                    <Button x:Name="HistoryDatePickerButton"
-                                            Width="46"
-                                            Height="46"
-                                            Command="{Binding ToggleHistoryDatePickerCommand}"
-                                            Background="#15312B"
-                                            BorderBrush="#15312B"
-                                            Foreground="#FFF7EC"
-                                            Cursor="Hand">
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                    <Border Margin="0,0,12,0"
+                                            Width="225"
+                                            Padding="16"
+                                            Background="#FFF8EF"
+                                            CornerRadius="18"
+                                            VerticalAlignment="Bottom">
+                                        <StackPanel>
+                                            <TextBlock Foreground="#7B7F74"
+                                                       FontSize="12"
+                                                       Text="历史总流量" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       FontSize="22"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#223B35"
+                                                       Text="{Binding HistoryTrafficDisplay}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Margin="0,0,20,0"
+                                            Width="225"
+                                            Padding="16"
+                                            Background="#EEF3ED"
+                                            CornerRadius="18"
+                                            VerticalAlignment="Bottom">
+                                        <StackPanel>
+                                            <TextBlock Foreground="#7B7F74"
+                                                       FontSize="12"
+                                                       Text="总处理 I/O" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       FontSize="22"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#223B35"
+                                                       Text="{Binding HistoryIoDisplay}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid VerticalAlignment="Bottom">
+                                        <Button x:Name="HistoryDatePickerButton"
+                                                Width="46"
+                                                Height="46"
+                                                Command="{Binding ToggleHistoryDatePickerCommand}"
+                                                Background="#15312B"
+                                                BorderBrush="#15312B"
+                                                Foreground="#FFF7EC"
+                                                Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}"
@@ -1292,12 +1303,13 @@
                                             </Grid>
                                         </Border>
                                     </Popup>
-                                </Grid>
+                                    </Grid>
+                                </StackPanel>
                             </Grid>
 
                             <UniformGrid Margin="0,18,0,0"
                                          Columns="3">
-                                <Border Margin="0,0,8,8"
+                                <Border Margin="0,0,8,0"
                                         Padding="16"
                                         Background="#F5EFE3"
                                         CornerRadius="18">
@@ -1312,7 +1324,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Margin="8,0,8,8"
+                                <Border Margin="8,0,8,0"
                                         Padding="16"
                                         Background="#F4F0E7"
                                         CornerRadius="18">
@@ -1327,7 +1339,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Margin="8,0,0,8"
+                                <Border Margin="8,0,0,0"
                                         Padding="16"
                                         Background="#F1F6F0"
                                         CornerRadius="18">
@@ -1339,38 +1351,6 @@
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
                                                    Text="{Binding HistoryForegroundRatioDisplay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Margin="0,8,8,0"
-                                        Padding="16"
-                                        Background="#FFF8EF"
-                                        CornerRadius="18">
-                                    <StackPanel>
-                                        <TextBlock Foreground="#7B7F74"
-                                                   FontSize="12"
-                                                   Text="历史总流量" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistoryTrafficDisplay}"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Margin="8,8,8,0"
-                                        Padding="16"
-                                        Background="#EEF3ED"
-                                        CornerRadius="18">
-                                    <StackPanel>
-                                        <TextBlock Foreground="#7B7F74"
-                                                   FontSize="12"
-                                                   Text="历史总 I/O" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistoryIoDisplay}"
-                                                   TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
@@ -1467,13 +1447,7 @@
                     <StackPanel>
                         <TextBlock Foreground="#7B7F74"
                                    FontSize="13"
-                                   Text="历史画像" />
-                        <TextBlock Margin="0,10,0,0"
-                                   FontSize="24"
-                                   FontWeight="SemiBold"
-                                   Foreground="#223B35"
-                                   Text="{Binding HistoryHabitInsight}"
-                                   TextWrapping="Wrap" />
+                                   Text="历史概况" />
 
                         <Grid Margin="0,18,0,0">
                             <Grid.ColumnDefinitions>
@@ -1507,12 +1481,8 @@
                                 <StackPanel>
                                     <TextBlock Foreground="#7B7F74"
                                                FontSize="12"
-                                               Text="分析结论" />
+                                               Text="应用路径" />
                                     <TextBlock Margin="0,8,0,0"
-                                               Foreground="#223B35"
-                                               Text="{Binding HistoryPerformanceInsight}"
-                                               TextWrapping="Wrap" />
-                                    <TextBlock Margin="0,10,0,0"
                                                Foreground="#506057"
                                                Text="{Binding HistoryExecutablePathDisplay, StringFormat=路径 {0}}"
                                                TextWrapping="Wrap" />

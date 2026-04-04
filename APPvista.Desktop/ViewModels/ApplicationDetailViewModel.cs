@@ -165,9 +165,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public bool IsHistoryMonthDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Month;
     public string HistoryDimensionTitle => _selectedHistoryDimension switch
     {
-        HistoryAnalysisDimension.Week => "按周分析",
-        HistoryAnalysisDimension.Month => "按月分析",
-        _ => "按日分析"
+        HistoryAnalysisDimension.Week => "按周",
+        HistoryAnalysisDimension.Month => "按月",
+        _ => "当日"
     };
     public string HistorySelectionDisplay => _selectedHistoryDimension switch
     {
@@ -192,7 +192,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _isHistoryDatePickerOpen, value);
     }
     public string HistoryCalendarMonthDisplay => $"{_historyDisplayedMonth:yyyy 年 MM 月}";
-    public string HistorySummaryCaption => _historySummary.Caption;
     public string HistoryRangeDisplay => _historySummary.RangeDisplay;
     public string HistoryActiveDaysDisplay => _historySummary.ActiveDaysDisplay;
     public string HistoryUsageDisplay => _historySummary.TotalUsageDisplay;
@@ -204,12 +203,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public string HistoryAverageIopsDisplay => _historySummary.AverageIopsDisplay;
     public string HistoryPeakMemoryDisplay => _historySummary.PeakWorkingSetDisplay;
     public string HistoryThreadDisplay => _historySummary.ThreadSummaryDisplay;
-    public string HistoryHabitInsight => _historySummary.HabitInsight;
-    public string HistoryPerformanceInsight => _historySummary.PerformanceInsight;
     public string HistoryExecutablePathDisplay => _historySummary.ExecutablePathDisplay;
     public string TodayFocusRatio => BuildFocusRatio(Snapshot.DailyForegroundMilliseconds, Snapshot.DailyBackgroundMilliseconds);
-    public string HabitInsight => BuildHabitInsight(Snapshot);
-    public string PerformanceInsight => BuildPerformanceInsight(Snapshot);
 
     public string SelectedNetworkDisplayOption
     {
@@ -843,8 +838,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private void RaiseLiveApplicationProperties()
     {
         RaisePropertyChanged(nameof(TodayFocusRatio));
-        RaisePropertyChanged(nameof(HabitInsight));
-        RaisePropertyChanged(nameof(PerformanceInsight));
         RaisePropertyChanged(nameof(CpuDisplay));
         RaisePropertyChanged(nameof(WorkingSetDisplay));
         RaisePropertyChanged(nameof(PeakWorkingSetDisplay));
@@ -939,7 +932,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistorySelectionDisplay));
         RaisePropertyChanged(nameof(SelectedHistoryDateTime));
         RaisePropertyChanged(nameof(HistoryCalendarMonthDisplay));
-        RaisePropertyChanged(nameof(HistorySummaryCaption));
         RaisePropertyChanged(nameof(HistoryRangeDisplay));
         RaisePropertyChanged(nameof(HistoryActiveDaysDisplay));
         RaisePropertyChanged(nameof(HistoryUsageDisplay));
@@ -951,8 +943,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryAverageIopsDisplay));
         RaisePropertyChanged(nameof(HistoryPeakMemoryDisplay));
         RaisePropertyChanged(nameof(HistoryThreadDisplay));
-        RaisePropertyChanged(nameof(HistoryHabitInsight));
-        RaisePropertyChanged(nameof(HistoryPerformanceInsight));
         RaisePropertyChanged(nameof(HistoryExecutablePathDisplay));
         RaisePropertyChanged(nameof(HistoryNetworkChartTitle));
         RaisePropertyChanged(nameof(HistoryIoChartTitle));
@@ -1441,12 +1431,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         {
             return ApplicationHistorySummary.Empty with
             {
-                Caption = dimension switch
-                {
-                    HistoryAnalysisDimension.Week => "按周历史",
-                    HistoryAnalysisDimension.Month => "按月历史",
-                    _ => "按日历史"
-                },
                 RangeDisplay = rangeDisplay,
                 ExecutablePathDisplay = string.IsNullOrWhiteSpace(snapshot.ExecutablePath) ? "-" : snapshot.ExecutablePath
             };
@@ -1480,12 +1464,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
         return new ApplicationHistorySummary
         {
-            Caption = dimension switch
-            {
-                HistoryAnalysisDimension.Week => "按周历史",
-                HistoryAnalysisDimension.Month => "按月历史",
-                _ => "按日历史"
-            },
             RangeDisplay = rangeDisplay,
             ActiveDaysDisplay = $"活跃天数 {ordered.Count}",
             TotalUsageDisplay = FormatDuration(totalForegroundMilliseconds + totalBackgroundMilliseconds),
@@ -1501,52 +1479,10 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             AverageIopsDisplay = averageIops.ToString("F1", CultureInfo.InvariantCulture),
             PeakWorkingSetDisplay = FormatBytes(peakWorkingSetBytes),
             ThreadSummaryDisplay = $"均值 {averageThreadCount:F1} / 峰值 {peakThreadCount}",
-            HabitInsight = BuildHistoryHabitInsight(focusRatio),
-            PerformanceInsight = BuildHistoryPerformanceInsight(totalDownloadBytes + totalUploadBytes, totalIoReadBytes + totalIoWriteBytes, averageCpu),
             ExecutablePathDisplay = executablePath,
             ChartStartLabel = firstDay,
             ChartEndLabel = lastDay
         };
-    }
-
-    private static string BuildHistoryHabitInsight(double foregroundRatio)
-    {
-        if (foregroundRatio <= 0)
-        {
-            return "历史样本不足，暂时无法判断该应用的前后台使用倾向。";
-        }
-
-        if (foregroundRatio >= 0.7d)
-        {
-            return "历史上该应用以前台主动使用为主，更接近被反复打开和持续操作的工具。";
-        }
-
-        if (foregroundRatio <= 0.3d)
-        {
-            return "历史上该应用更多处于后台驻留状态，偏向服务型、同步型或托盘型进程。";
-        }
-
-        return "历史上该应用的前后台占比较均衡，使用方式在交互和驻留之间切换频繁。";
-    }
-
-    private static string BuildHistoryPerformanceInsight(long totalTrafficBytes, long totalIoBytes, double averageCpu)
-    {
-        if (averageCpu >= 15d && totalTrafficBytes >= 500L * 1024 * 1024)
-        {
-            return "从历史看，该应用同时存在较持续的计算与网络负载，常见于同步、下载或在线处理任务。";
-        }
-
-        if (totalIoBytes >= 500L * 1024 * 1024)
-        {
-            return "从历史看，该应用的磁盘读写较活跃，适合优先关注缓存、落盘和批量处理行为。";
-        }
-
-        if (averageCpu >= 15d)
-        {
-            return "从历史看，该应用更偏本地计算型负载，CPU 占用长期高于普通驻留应用。";
-        }
-
-        return "从历史看，该应用整体负载较温和，更像常规使用或轻量驻留。";
     }
 
     private static string FormatRate(double bytesPerSecond)
@@ -1605,56 +1541,11 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         return $"前台占比 {(ratio * 100d).ToString("F0", CultureInfo.InvariantCulture)}%";
     }
 
-    private static string BuildHabitInsight(ProcessResourceSnapshot snapshot)
-    {
-        var total = snapshot.DailyForegroundMilliseconds + snapshot.DailyBackgroundMilliseconds;
-        if (total <= 0)
-        {
-            return "尚未积累足够的前后台使用行为数据。";
-        }
-
-        if (snapshot.DailyForegroundMilliseconds >= snapshot.DailyBackgroundMilliseconds * 1.8)
-        {
-            return "该应用明显以主动交互为主，通常在被打开后保持较长时间停留。";
-        }
-
-        if (snapshot.DailyBackgroundMilliseconds >= snapshot.DailyForegroundMilliseconds * 1.8)
-        {
-            return "该应用大部分时间处于后台常驻状态，更像服务型或托盘型进程。";
-        }
-
-        return "该应用在前台使用和后台驻留之间较为均衡，使用场景切换频繁。";
-    }
-
-    private static string BuildPerformanceInsight(ProcessResourceSnapshot snapshot)
-    {
-        var hotNetwork = snapshot.RealtimeDownloadBytesPerSecond + snapshot.RealtimeUploadBytesPerSecond >= 5L * 1024 * 1024;
-        var hotIo = snapshot.RealtimeIoReadBytesPerSecond + snapshot.RealtimeIoWriteBytesPerSecond >= 5L * 1024 * 1024;
-        var hotCpu = snapshot.CpuUsagePercent >= 20d;
-
-        if (hotCpu && hotNetwork)
-        {
-            return "当前同时存在明显的计算与网络负载，适合优先排查活跃任务、下载或同步行为。";
-        }
-
-        if (hotIo)
-        {
-            return "当前应用吞吐较高，若界面卡顿或系统响应下降，可优先关注该应用的读写行为。";
-        }
-
-        if (hotCpu)
-        {
-            return "当前 CPU 压力较明显，但网络与IO负载相对稳定，偏向本地计算型任务。";
-        }
-
-        return "当前性能压力较温和，更多体现为常规驻留与轻量交互。";
-    }
 
     private sealed record ApplicationHistorySummary
     {
         public static readonly ApplicationHistorySummary Empty = new()
         {
-            Caption = "历史统计",
             RangeDisplay = "暂无历史数据",
             ActiveDaysDisplay = "活跃天数 0",
             TotalUsageDisplay = "00:00:00",
@@ -1670,14 +1561,11 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             AverageIopsDisplay = "0.0",
             PeakWorkingSetDisplay = "0 B",
             ThreadSummaryDisplay = "均值 0.0 / 峰值 0",
-            HabitInsight = "尚未积累足够的历史样本。",
-            PerformanceInsight = "尚未积累足够的历史样本。",
             ExecutablePathDisplay = "-",
             ChartStartLabel = "-",
             ChartEndLabel = "-"
         };
 
-        public string Caption { get; init; } = string.Empty;
         public string RangeDisplay { get; init; } = string.Empty;
         public string ActiveDaysDisplay { get; init; } = string.Empty;
         public string TotalUsageDisplay { get; init; } = string.Empty;
@@ -1693,8 +1581,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public string AverageIopsDisplay { get; init; } = string.Empty;
         public string PeakWorkingSetDisplay { get; init; } = string.Empty;
         public string ThreadSummaryDisplay { get; init; } = string.Empty;
-        public string HabitInsight { get; init; } = string.Empty;
-        public string PerformanceInsight { get; init; } = string.Empty;
         public string ExecutablePathDisplay { get; init; } = string.Empty;
         public string ChartStartLabel { get; init; } = string.Empty;
         public string ChartEndLabel { get; init; } = string.Empty;
