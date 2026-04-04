@@ -1,0 +1,6 @@
+﻿<Solution>
+  <Project Path="APPvista.Application/APPvista.Application.csproj" />
+  <Project Path="APPvista.Desktop/APPvista.Desktop.csproj" />
+  <Project Path="APPvista.Domain/APPvista.Domain.csproj" />
+  <Project Path="APPvista.Infrastructure/APPvista.Infrastructure.csproj" />
+</Solution>

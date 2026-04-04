@@ -1,0 +1,2034 @@
+﻿<Window x:Class="APPvista.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:services="clr-namespace:APPvista.Desktop.Services"
+        xmlns:local="clr-namespace:APPvista.Desktop"
+        mc:Ignorable="d"
+        Title="APPvista"
+        Width="2020"
+        Height="960"
+        MinWidth="1440"
+        MinHeight="820"
+        Icon="Assets/APPvista.ico"
+        Background="#EEE6DA"
+        FontFamily="Microsoft YaHei UI"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <services:IconPathToImageSourceConverter x:Key="IconPathToImageSourceConverter" />
+
+        <Style x:Key="GhostButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="MetricCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="#FFFDF9" />
+            <Setter Property="CornerRadius" Value="24" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+        </Style>
+
+        <Style x:Key="OverviewMenuStyle" TargetType="Menu">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="OverviewMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background" Value="#25433C" />
+            <Setter Property="Foreground" Value="#FFF7EC" />
+            <Setter Property="BorderBrush" Value="#2F534A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True" />
+                                <Path x:Name="Arrow"
+                                      Grid.Column="1"
+                                      Margin="14,0,14,0"
+                                      VerticalAlignment="Center"
+                                      Fill="{TemplateBinding Foreground}"
+                                      Data="M 0 0 L 4 4 L 0 8 Z"
+                                      Visibility="Collapsed" />
+                                <Popup x:Name="PART_Popup"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Placement="Bottom"
+                                       PopupAnimation="Fade">
+                                    <Border Margin="0,8,0,0"
+                                            Background="#25433C"
+                                            BorderBrush="#2F534A"
+                                            BorderThickness="1"
+                                            CornerRadius="14">
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Role" Value="SubmenuHeader">
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Right" />
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#3E6B5F" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#31574D" />
+                    <Setter Property="Foreground" Value="#FFF7EC" />
+                </Trigger>
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                    <Setter Property="Background" Value="#31574D" />
+                    <Setter Property="Foreground" Value="#FFF7EC" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="OverviewActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#25433C" />
+            <Setter Property="Foreground" Value="#FFF7EC" />
+            <Setter Property="BorderBrush" Value="#2F534A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#3E6B5F" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DashboardSwitchButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="150" />
+            <Setter Property="Height" Value="88" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+            <Setter Property="Background" Value="#25433C" />
+            <Setter Property="Foreground" Value="#FFF7EC" />
+            <Setter Property="BorderBrush" Value="#355D53" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="26">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#2E554B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#3E6B5F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="28"
+                Background="#15312B"
+                CornerRadius="30">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <Grid Margin="0,18,0,0"
+                          HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="150" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="DashboardSwitchIndicator"
+                                Width="150"
+                                Height="88"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="#FFF7EC"
+                                CornerRadius="26"
+                                IsHitTestVisible="False"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18"
+                                                  Direction="270"
+                                                  Opacity="0.18"
+                                                  ShadowDepth="6"
+                                                  Color="#0B1C18" />
+                            </Border.Effect>
+                            <Border.RenderTransform>
+                                <TranslateTransform X="0" />
+                            </Border.RenderTransform>
+                        </Border>
+                        <Button x:Name="RealtimeSwitchButton"
+                                Grid.Column="0"
+                                Click="RealtimeSwitchButton_OnClick"
+                                Command="{Binding ShowRealtimePageCommand}">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource DashboardSwitchButtonStyle}" TargetType="Button">
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="Foreground" Value="#FFF7EC" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="RootBorder"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="26">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center" />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                <Condition Binding="{Binding IsRealtimePageActive}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Background" Value="#2E554B" />
+                                        </MultiDataTrigger>
+                                        <DataTrigger Binding="{Binding IsRealtimePageActive}" Value="True">
+                                            <Setter Property="Foreground" Value="#15312B" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel>
+                                <TextBlock HorizontalAlignment="Center"
+                                           FontSize="26"
+                                           FontWeight="SemiBold"
+                                           Text="实时" />
+                                <TextBlock Margin="0,6,0,0"
+                                           HorizontalAlignment="Center"
+                                           FontSize="12"
+                                           Opacity="0.75"
+                                           Text="应用监控仪表盘" />
+                           </StackPanel>
+                        </Button>
+                        <Button x:Name="HistorySwitchButton"
+                                Grid.Column="2"
+                                Click="HistorySwitchButton_OnClick"
+                                Command="{Binding ShowHistoryPageCommand}"
+                                Margin="0">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource DashboardSwitchButtonStyle}" TargetType="Button">
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="Foreground" Value="#FFF7EC" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="RootBorder"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="26">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center" />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                <Condition Binding="{Binding IsHistoryPageActive}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Background" Value="#2E554B" />
+                                        </MultiDataTrigger>
+                                        <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                                            <Setter Property="Foreground" Value="#15312B" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel>
+                                <TextBlock HorizontalAlignment="Center"
+                                           FontSize="26"
+                                           FontWeight="SemiBold"
+                                           Text="历史" />
+                                <TextBlock Margin="0,6,0,0"
+                                           HorizontalAlignment="Center"
+                                           FontSize="12"
+                                           Opacity="0.75"
+                                           Text="分析页" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <Border Margin="0,20,50,0"
+                            Padding="16"
+                            Background="#25433C"
+                            CornerRadius="22"
+                            MaxWidth="1000">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0"
+                                            Margin="0,0,12,0">
+                                    <TextBlock Foreground="#A9C0B2"
+                                               FontSize="13"
+                                               Text="所选区间总览" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="#FFF7EC"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding HistorySummaryCaption}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <Grid Grid.Column="2"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Top">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Foreground="#CFE2D8"
+                                               FontSize="12"
+                                               HorizontalAlignment="Center"
+                                               Text="网络数据" />
+                                    <Border Margin="0,6,0,0"
+                                            Padding="4"
+                                            Background="#1D3C35"
+                                            CornerRadius="14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="74" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="74" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border x:Name="HistoryNetworkSwitchIndicator"
+                                                    Grid.Column="0"
+                                                    Width="74"
+                                                    VerticalAlignment="Stretch"
+                                                    Background="#FFF7EC"
+                                                    CornerRadius="10"
+                                                    IsHitTestVisible="False">
+                                                <Border.RenderTransform>
+                                                    <TranslateTransform X="0" />
+                                                </Border.RenderTransform>
+                                            </Border>
+                                            <Button x:Name="HistoryNetworkTotalButton"
+                                                    Grid.Column="0"
+                                                    Width="74"
+                                                    Padding="12,6"
+                                                    Click="HistoryNetworkTotalButton_OnClick"
+                                                    Command="{Binding SetHistoryNetworkTotalDisplayCommand}"
+                                                    Content="总量">
+                                                <Button.Style>
+                                                    <Style BasedOn="{StaticResource GhostButtonStyle}" TargetType="Button">
+                                                        <Setter Property="Foreground" Value="#A9C0B2" />
+                                                        <Setter Property="FontSize" Value="12" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="RootBorder"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="10">
+                                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                                    <Condition Binding="{Binding IsHistoryNetworkTotalMode}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Background" Value="#295148" />
+                                                            </MultiDataTrigger>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkTotalMode}" Value="True">
+                                                                <Setter Property="Foreground" Value="#15312B" />
+                                                                <Setter Property="Background" Value="#FFF7EC" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button x:Name="HistoryNetworkSplitButton"
+                                                    Grid.Column="2"
+                                                    Width="74"
+                                                    Padding="12,6"
+                                                    Click="HistoryNetworkSplitButton_OnClick"
+                                                    Command="{Binding SetHistoryNetworkSplitDisplayCommand}"
+                                                    Content="上下行">
+                                                <Button.Style>
+                                                    <Style BasedOn="{StaticResource GhostButtonStyle}" TargetType="Button">
+                                                        <Setter Property="Foreground" Value="#A9C0B2" />
+                                                        <Setter Property="FontSize" Value="12" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="RootBorder"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="10">
+                                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                                    <Condition Binding="{Binding IsHistoryNetworkSplitMode}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Background" Value="#295148" />
+                                                            </MultiDataTrigger>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkSplitMode}" Value="True">
+                                                                <Setter Property="Foreground" Value="#15312B" />
+                                                                <Setter Property="Background" Value="#FFF7EC" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Foreground="#CFE2D8"
+                                               FontSize="12"
+                                               HorizontalAlignment="Center"
+                                               Text="IO 数据" />
+                                    <Border Margin="0,6,0,0"
+                                            Padding="4"
+                                            Background="#1D3C35"
+                                            CornerRadius="14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="74" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="74" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border x:Name="HistoryIoSwitchIndicator"
+                                                    Grid.Column="0"
+                                                    Width="74"
+                                                    VerticalAlignment="Stretch"
+                                                    Background="#FFF7EC"
+                                                    CornerRadius="10"
+                                                    IsHitTestVisible="False">
+                                                <Border.RenderTransform>
+                                                    <TranslateTransform X="0" />
+                                                </Border.RenderTransform>
+                                            </Border>
+                                            <Button x:Name="HistoryIoTotalButton"
+                                                    Grid.Column="0"
+                                                    Width="74"
+                                                    Padding="12,6"
+                                                    Click="HistoryIoTotalButton_OnClick"
+                                                    Command="{Binding SetHistoryIoTotalDisplayCommand}"
+                                                    Content="总量">
+                                                <Button.Style>
+                                                    <Style BasedOn="{StaticResource GhostButtonStyle}" TargetType="Button">
+                                                        <Setter Property="Foreground" Value="#A9C0B2" />
+                                                        <Setter Property="FontSize" Value="12" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="RootBorder"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="10">
+                                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                                    <Condition Binding="{Binding IsHistoryIoTotalMode}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Background" Value="#295148" />
+                                                            </MultiDataTrigger>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoTotalMode}" Value="True">
+                                                                <Setter Property="Foreground" Value="#15312B" />
+                                                                <Setter Property="Background" Value="#FFF7EC" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button x:Name="HistoryIoSplitButton"
+                                                    Grid.Column="2"
+                                                    Width="74"
+                                                    Padding="12,6"
+                                                    Click="HistoryIoSplitButton_OnClick"
+                                                    Command="{Binding SetHistoryIoSplitDisplayCommand}"
+                                                    Content="读写">
+                                                <Button.Style>
+                                                    <Style BasedOn="{StaticResource GhostButtonStyle}" TargetType="Button">
+                                                        <Setter Property="Foreground" Value="#A9C0B2" />
+                                                        <Setter Property="FontSize" Value="12" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="RootBorder"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="10">
+                                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True" />
+                                                                    <Condition Binding="{Binding IsHistoryIoSplitMode}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Background" Value="#295148" />
+                                                            </MultiDataTrigger>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoSplitMode}" Value="True">
+                                                                <Setter Property="Foreground" Value="#15312B" />
+                                                                <Setter Property="Background" Value="#FFF7EC" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+
+                            <UniformGrid Margin="0,16,0,0"
+                                         Columns="2">
+                                <Border Margin="0,0,8,8"
+                                        Padding="14"
+                                        Background="#1D3C35"
+                                        CornerRadius="18">
+                                    <StackPanel>
+                                        <TextBlock Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="应用总流量" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding HistoryApplicationNetworkDisplay}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Margin="8,0,0,8"
+                                        Padding="14"
+                                        Background="#1D3C35"
+                                        CornerRadius="18">
+                                    <StackPanel>
+                                        <TextBlock Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="应用 IO 总量" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding HistoryApplicationIoDisplay}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Margin="0,8,8,0"
+                                        Padding="14"
+                                        Background="#1D3C35"
+                                        CornerRadius="18">
+                                    <StackPanel>
+                                        <TextBlock Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="系统总流量" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding HistorySystemNetworkDisplay}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Margin="8,8,0,0"
+                                        Padding="14"
+                                        Background="#1D3C35"
+                                        CornerRadius="18">
+                                    <StackPanel>
+                                        <TextBlock Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="系统 IO 总量" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding HistorySystemIoDisplay}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                    <Menu Margin="0,12,0,0">
+                        <Menu.Style>
+                            <Style TargetType="Menu" BasedOn="{StaticResource OverviewMenuStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Menu.Style>
+                        <Menu.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                        </Menu.Resources>
+                        <MenuItem Header="总览视图"
+                                  Style="{StaticResource OverviewMenuItemStyle}">
+                            <MenuItem Header="数据来源">
+                                <MenuItem Header="应用总和"
+                                          Command="{Binding SetApplicationSumDataSourceCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsApplicationSumDataSourceMode, Mode=OneWay}" />
+                                <MenuItem Header="系统总量"
+                                          Command="{Binding SetSystemTotalsDataSourceCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsSystemTotalsDataSourceMode, Mode=OneWay}" />
+                            </MenuItem>
+                            <MenuItem Header="网络显示">
+                                <MenuItem Header="总量"
+                                          Command="{Binding SetNetworkTotalDisplayCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsNetworkTotalMode, Mode=OneWay}" />
+                                <MenuItem Header="区分上下行"
+                                          Command="{Binding SetNetworkSplitDisplayCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsNetworkSplitMode, Mode=OneWay}" />
+                            </MenuItem>
+                            <MenuItem Header="IO显示">
+                                <MenuItem Header="总量"
+                                          Command="{Binding SetIoTotalDisplayCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsIoTotalMode, Mode=OneWay}" />
+                                <MenuItem Header="区分读写"
+                                          Command="{Binding SetIoSplitDisplayCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
+                            </MenuItem>
+                            <MenuItem Header="记录范围">
+                                <MenuItem Header="全部应用"
+                                          Command="{Binding DisableWindowedOnlyRecordingCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsAllApplicationsRecordingMode, Mode=OneWay}" />
+                                <MenuItem Header="仅窗口应用"
+                                          Command="{Binding EnableWindowedOnlyRecordingCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsWindowedOnlyRecordingMode, Mode=OneWay}" />
+                            </MenuItem>
+                        </MenuItem>
+                    </Menu>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Right">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Border Width="420"
+                                Padding="20,18"
+                                Background="#25433C"
+                                CornerRadius="22">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="124" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Foreground="#A9C0B2"
+                                           FontSize="13"
+                                           Text="{Binding NetworkOverviewTitle, Mode=OneWay}" />
+                                    <StackPanel Margin="0,8,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNetworkSummaryTotalMode, Mode=OneWay}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Foreground="#FFF7EC"
+                                               FontSize="30"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding TotalSpeedDisplay, Mode=OneWay}" />
+                                        <TextBlock Margin="0,12,0,0"
+                                               Foreground="#A9C0B2"
+                                               FontSize="12"
+                                               Text="今日总量" />
+                                        <TextBlock Margin="0,4,0,0"
+                                               Foreground="#FFF7EC"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding NetworkTotalVolumeDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNetworkSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Foreground="#A9C0B2"
+                                                       FontSize="12"
+                                                       Text="下行" />
+                                                <Border Width="8"
+                                                    Height="8"
+                                                    Margin="6,3,0,0"
+                                                    Background="#6CB8FF"
+                                                    CornerRadius="4" />
+                                            </StackPanel>
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding NetworkDownloadSpeedDisplay, Mode=OneWay}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="今日下行" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding TotalDownloadDisplay, Mode=OneWay}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Foreground="#A9C0B2"
+                                                       FontSize="12"
+                                                       Text="上行" />
+                                                <Border Width="8"
+                                                    Height="8"
+                                                    Margin="6,3,0,0"
+                                                    Background="#FFAE72"
+                                                    CornerRadius="4" />
+                                            </StackPanel>
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding NetworkUploadSpeedDisplay, Mode=OneWay}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="今日上行" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding TotalUploadDisplay, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid Grid.Column="2"
+                                      Height="115"
+                                      VerticalAlignment="Center">
+                                    <Border Background="#25433C"
+                                            CornerRadius="0"
+                                            Opacity="0.78" />
+                                    <Rectangle Margin="10,0,10,10"
+                                               VerticalAlignment="Bottom"
+                                               Height="1"
+                                               Fill="#355D53"
+                                               Opacity="0.9" />
+                                    <Grid Margin="10,10,10,10">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNetworkSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Polyline Stroke="#9AD0BF"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding NetworkMiniTotalPoints, Mode=OneWay}" />
+                                        <Canvas IsHitTestVisible="False">
+                                            <Border Padding="4,1"
+                                                    Background="#CC25433C"
+                                                    BorderBrush="{Binding NetworkMiniPeakBrush, Mode=OneWay}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Canvas.Left="{Binding NetworkMiniPeakLeft, Mode=OneWay}"
+                                                    Canvas.Top="{Binding NetworkMiniPeakTop, Mode=OneWay}">
+                                                <TextBlock Foreground="#FFF7EC"
+                                                           FontSize="9"
+                                                           Text="{Binding NetworkMiniPeakLabel, Mode=OneWay}" />
+                                            </Border>
+                                        </Canvas>
+                                    </Grid>
+                                    <Grid Margin="10,10,10,10">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNetworkSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Polyline Stroke="#6CB8FF"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding NetworkMiniDownloadPoints, Mode=OneWay}" />
+                                        <Polyline Stroke="#FFAE72"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding NetworkMiniUploadPoints, Mode=OneWay}" />
+                                        <Canvas IsHitTestVisible="False">
+                                            <Border Padding="4,1"
+                                                    Background="#CC25433C"
+                                                    BorderBrush="{Binding NetworkMiniPeakBrush, Mode=OneWay}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Canvas.Left="{Binding NetworkMiniPeakLeft, Mode=OneWay}"
+                                                    Canvas.Top="{Binding NetworkMiniPeakTop, Mode=OneWay}">
+                                                <TextBlock Foreground="#FFF7EC"
+                                                           FontSize="9"
+                                                           Text="{Binding NetworkMiniPeakLabel, Mode=OneWay}" />
+                                            </Border>
+                                        </Canvas>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Width="420"
+                                Margin="14,0,0,0"
+                                Padding="20,18"
+                                Background="#25433C"
+                                CornerRadius="22">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="124" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Foreground="#A9C0B2"
+                                           FontSize="13"
+                                           Text="{Binding IoOverviewTitle, Mode=OneWay}" />
+                                    <StackPanel Margin="0,8,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsIoSummaryTotalMode, Mode=OneWay}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Foreground="#FFF7EC"
+                                               FontSize="30"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding TotalIoSpeedDisplay, Mode=OneWay}" />
+                                        <TextBlock Margin="0,12,0,0"
+                                               Foreground="#A9C0B2"
+                                               FontSize="12"
+                                               Text="今日总量" />
+                                        <TextBlock Margin="0,4,0,0"
+                                               Foreground="#FFF7EC"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding TotalIoVolumeDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsIoSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Foreground="#A9C0B2"
+                                                       FontSize="12"
+                                                       Text="读取" />
+                                                <Border Width="8"
+                                                    Height="8"
+                                                    Margin="6,3,0,0"
+                                                    Background="#5EB2A4"
+                                                    CornerRadius="4" />
+                                            </StackPanel>
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding IoReadSpeedDisplay, Mode=OneWay}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="今日读取" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding IoReadVolumeDisplay, Mode=OneWay}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Foreground="#A9C0B2"
+                                                       FontSize="12"
+                                                       Text="写入" />
+                                                <Border Width="8"
+                                                    Height="8"
+                                                    Margin="6,3,0,0"
+                                                    Background="#E7A075"
+                                                    CornerRadius="4" />
+                                            </StackPanel>
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding IoWriteSpeedDisplay, Mode=OneWay}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#A9C0B2"
+                                                   FontSize="12"
+                                                   Text="今日写入" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FFF7EC"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding IoWriteVolumeDisplay, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid Grid.Column="2"
+                                      Height="115"
+                                      VerticalAlignment="Center">
+                                    <Border Background="#25433C"
+                                            CornerRadius="14"
+                                            Opacity="0.78" />
+                                    <Rectangle Margin="10,0,10,10"
+                                               VerticalAlignment="Bottom"
+                                               Height="1"
+                                               Fill="#355D53"
+                                               Opacity="0.9" />
+                                    <Grid Margin="10,10,10,10">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsIoSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Polyline Stroke="#8FD4B9"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding IoMiniTotalPoints, Mode=OneWay}" />
+                                        <Canvas IsHitTestVisible="False">
+                                            <Border Padding="4,1"
+                                                    Background="#CC25433C"
+                                                    BorderBrush="{Binding IoMiniPeakBrush, Mode=OneWay}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Canvas.Left="{Binding IoMiniPeakLeft, Mode=OneWay}"
+                                                    Canvas.Top="{Binding IoMiniPeakTop, Mode=OneWay}">
+                                                <TextBlock Foreground="#FFF7EC"
+                                                           FontSize="9"
+                                                           Text="{Binding IoMiniPeakLabel, Mode=OneWay}" />
+                                            </Border>
+                                        </Canvas>
+                                    </Grid>
+                                    <Grid Margin="10,10,10,10">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsIoSummarySplitMode, Mode=OneWay}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Polyline Stroke="#5EB2A4"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding IoMiniReadPoints, Mode=OneWay}" />
+                                        <Polyline Stroke="#E7A075"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Points="{Binding IoMiniWritePoints, Mode=OneWay}" />
+                                        <Canvas IsHitTestVisible="False">
+                                            <Border Padding="4,1"
+                                                    Background="#CC25433C"
+                                                    BorderBrush="{Binding IoMiniPeakBrush, Mode=OneWay}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Canvas.Left="{Binding IoMiniPeakLeft, Mode=OneWay}"
+                                                    Canvas.Top="{Binding IoMiniPeakTop, Mode=OneWay}">
+                                                <TextBlock Foreground="#FFF7EC"
+                                                           FontSize="9"
+                                                           Text="{Binding IoMiniPeakLabel, Mode=OneWay}" />
+                                            </Border>
+                                        </Canvas>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Margin="0,12,0,0"
+                               HorizontalAlignment="Right"
+                               Foreground="#A9C0B2"
+                               FontSize="13">
+                        <Run Text="今日已记录 " />
+                        <Run Text="{Binding ActiveApplicationsDisplay, Mode=OneWay}" />
+                        <Run Text=" 个应用，刷新于 " />
+                        <Run Text="{Binding HeaderTimestamp, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Width="854"
+                        Padding="18"
+                        Background="#25433C"
+                        CornerRadius="24"
+                        HorizontalAlignment="Right">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="14" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Foreground="#A9C0B2"
+                                           FontSize="13"
+                                           Text="历史区间日历" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="#FFF7EC"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding HistoryCalendarSelectionDisplay}" />
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Width="28"
+                                    Height="28"
+                                    Background="#31574D"
+                                    BorderBrush="#31574D"
+                                    Command="{Binding ShowPreviousHistoryMonthCommand}"
+                                    Content="&#x2039;"
+                                    Cursor="Hand"
+                                    FontSize="14"
+                                    Foreground="#FFF7EC" />
+                            <Button Grid.Column="3"
+                                    Width="28"
+                                    Height="28"
+                                    Background="#31574D"
+                                    BorderBrush="#31574D"
+                                    Command="{Binding ShowNextHistoryMonthCommand}"
+                                    Content="&#x203A;"
+                                    Cursor="Hand"
+                                    FontSize="14"
+                                    Foreground="#FFF7EC" />
+                        </Grid>
+
+                        <TextBlock Grid.Row="2"
+                                   Grid.ColumnSpan="4"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#FFF7EC"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding HistoryCalendarMonthDisplay}" />
+
+                        <Grid Grid.Row="4"
+                              Grid.ColumnSpan="4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <UniformGrid Columns="7">
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="日" /></Border>
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="一" /></Border>
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="二" /></Border>
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="三" /></Border>
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="四" /></Border>
+                                <Border Margin="0,0,8,0" Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="五" /></Border>
+                                <Border Background="Transparent"><TextBlock HorizontalAlignment="Center" Foreground="#A9C0B2" Text="六" /></Border>
+                            </UniformGrid>
+                            <ItemsControl Grid.Row="2"
+                                          ItemsSource="{Binding HistoryCalendarDays}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="7" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,0,0,4"
+                                                Command="{Binding SelectCommand}"
+                                                Cursor="Hand">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Foreground" Value="#FFF7EC" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Height" Value="30" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Segment"
+                                                                        Background="Transparent"
+                                                                        Margin="0"
+                                                                        SnapsToDevicePixels="True"
+                                                                        CornerRadius="0">
+                                                                    <Border x:Name="Chip"
+                                                                            Margin="1,0"
+                                                                            Background="#1B352F"
+                                                                            BorderBrush="#2E544A"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="8">
+                                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Chip" Property="Background" Value="#31574D" />
+                                                                        <Setter TargetName="Chip" Property="BorderBrush" Value="#31574D" />
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                        <Setter TargetName="Chip" Property="Opacity" Value="0.55" />
+                                                                    </Trigger>
+                                                                    <DataTrigger Binding="{Binding IsInDisplayedMonth}" Value="False">
+                                                                        <Setter Property="Foreground" Value="#6E8A80" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding HasData}" Value="True">
+                                                                        <Setter TargetName="Chip" Property="Background" Value="#4F8A76" />
+                                                                        <Setter TargetName="Chip" Property="BorderBrush" Value="#A7DCC8" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#15312B" />
+                                                                        <Setter TargetName="Segment" Property="Background" Value="#A7D0BC" />
+                                                                        <Setter TargetName="Chip" Property="Background" Value="Transparent" />
+                                                                        <Setter TargetName="Chip" Property="BorderBrush" Value="Transparent" />
+                                                                        <Setter TargetName="Chip" Property="BorderThickness" Value="0" />
+                                                                        <Setter TargetName="Chip" Property="Margin" Value="0" />
+                                                                        <Setter TargetName="Chip" Property="CornerRadius" Value="0" />
+                                                                    </DataTrigger>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsSelected}" Value="True" />
+                                                                            <Condition Binding="{Binding IsSelectable}" Value="False" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter TargetName="Chip" Property="Opacity" Value="1" />
+                                                                    </MultiDataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsSingleSelection}" Value="True">
+                                                                        <Setter TargetName="Segment" Property="Margin" Value="0" />
+                                                                        <Setter TargetName="Segment" Property="CornerRadius" Value="8" />
+                                                                        <Setter TargetName="Chip" Property="CornerRadius" Value="8" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsRangeStartOnly}" Value="True">
+                                                                        <Setter TargetName="Segment" Property="Margin" Value="0,0,-4,0" />
+                                                                        <Setter TargetName="Segment" Property="CornerRadius" Value="8,4,4,8" />
+                                                                        <Setter TargetName="Chip" Property="CornerRadius" Value="8,4,4,8" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsRangeEndOnly}" Value="True">
+                                                                        <Setter TargetName="Segment" Property="Margin" Value="-4,0,0,0" />
+                                                                        <Setter TargetName="Segment" Property="CornerRadius" Value="4,8,8,4" />
+                                                                        <Setter TargetName="Chip" Property="CornerRadius" Value="4,8,8,4" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsRangeMiddle}" Value="True">
+                                                                        <Setter TargetName="Segment" Property="Margin" Value="-4,0,-4,0" />
+                                                                        <Setter TargetName="Segment" Property="CornerRadius" Value="0" />
+                                                                        <Setter TargetName="Chip" Property="CornerRadius" Value="0" />
+                                                                    </DataTrigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Text="{Binding DayNumber}" />
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" />
+
+        <Grid x:Name="RealtimePageRoot" Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="36*"/>
+                <ColumnDefinition Width="457*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RenderTransform>
+                <TranslateTransform X="0" />
+            </Grid.RenderTransform>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="IsHitTestVisible" Value="True" />
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Setter Property="Panel.ZIndex" Value="2" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRealtimePageActive}" Value="False">
+                            <Setter Property="Opacity" Value="0" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Panel.ZIndex" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsRealtimePageActive}" Value="True">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="IsHitTestVisible" Value="True" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Setter Property="Panel.ZIndex" Value="2" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="14" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Padding="18"
+                    Background="#FFFDF9"
+                    CornerRadius="26" Grid.ColumnSpan="2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Menu Grid.Column="0"
+                          VerticalAlignment="Center"
+                          Style="{StaticResource OverviewMenuStyle}">
+                        <Menu.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                        </Menu.Resources>
+                        <MenuItem Header="{Binding SortMenuDisplay}"
+                                  Style="{StaticResource OverviewMenuItemStyle}">
+                            <MenuItem Header="名称"
+                                      Command="{Binding SetSortByNameCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByNameMode, Mode=OneWay}" />
+                            <MenuItem Header="前台时长"
+                                      Command="{Binding SetSortByFocusCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByFocusMode, Mode=OneWay}" />
+                            <MenuItem Header="当前网速"
+                                      Command="{Binding SetSortByNetworkCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByNetworkMode, Mode=OneWay}" />
+                            <MenuItem Header="总流量"
+                                      Command="{Binding SetSortByTrafficCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByTrafficMode, Mode=OneWay}" />
+                            <MenuItem Header="CPU"
+                                      Command="{Binding SetSortByCpuCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByCpuMode, Mode=OneWay}" />
+                            <MenuItem Header="内存"
+                                      Command="{Binding SetSortByMemoryCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByMemoryMode, Mode=OneWay}" />
+                            <MenuItem Header="I/O总量"
+                                      Command="{Binding SetSortByIoCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByIoMode, Mode=OneWay}" />
+                            <MenuItem Header="线程峰均比"
+                                      Command="{Binding SetSortByThreadCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsSortByThreadMode, Mode=OneWay}" />
+                        </MenuItem>
+                    </Menu>
+
+                    <Menu Grid.Column="2"
+                          VerticalAlignment="Center"
+                          Style="{StaticResource OverviewMenuStyle}">
+                        <Menu.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                        </Menu.Resources>
+                        <MenuItem Header="{Binding RefreshIntervalMenuDisplay}"
+                                  Style="{StaticResource OverviewMenuItemStyle}">
+                            <MenuItem Header="1 秒"
+                                      Command="{Binding SetRefreshInterval1SecondCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsRefreshInterval1SecondMode, Mode=OneWay}" />
+                            <MenuItem Header="2 秒"
+                                      Command="{Binding SetRefreshInterval2SecondsCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsRefreshInterval2SecondsMode, Mode=OneWay}" />
+                            <MenuItem Header="5 秒"
+                                      Command="{Binding SetRefreshInterval5SecondsCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsRefreshInterval5SecondsMode, Mode=OneWay}" />
+                            <MenuItem Header="10 秒"
+                                      Command="{Binding SetRefreshInterval10SecondsCommand}"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding IsRefreshInterval10SecondsMode, Mode=OneWay}" />
+                        </MenuItem>
+                    </Menu>
+
+                    <Button Grid.Column="4"
+                            Style="{StaticResource OverviewActionButtonStyle}"
+                            Command="{Binding RefreshCommand}"
+                            ToolTip="刷新并重排">
+                        <Viewbox Width="24" Height="24" Stretch="Uniform">
+                            <Path Width="33"
+                                  Height="33"
+                                  Fill="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  Data="M17.65,6.35C16.2,4.9 14.21,4 12,4C7.58,4 4,7.58 4,12C4,16.42 7.58,20 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.82,16.33 14.6,18 12,18C8.69,18 6,15.31 6,12C6,8.69 8.69,6 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" Stretch="Fill" />
+                        </Viewbox>
+                    </Button>
+
+                    <Grid Grid.Column="7">
+                        <Button x:Name="CustomMetricButton"
+                                Style="{StaticResource OverviewActionButtonStyle}"
+                                Command="{Binding ToggleCustomMetricPopupCommand}"
+                                Content="自定义数据项"
+                                Foreground="#FFF7EC" />
+
+                        <Popup PlacementTarget="{Binding ElementName=CustomMetricButton}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               IsOpen="{Binding IsCustomMetricPopupOpen, Mode=TwoWay}">
+                            <Border Width="360"
+                                    Margin="0,8,0,0"
+                                    Padding="18"
+                                    Background="#FFFDF9"
+                                    BorderBrush="#D9D0C0"
+                                    BorderThickness="1"
+                                    CornerRadius="20">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Foreground="#213B35"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Text="自定义数据项" />
+                                    <TextBlock Grid.Row="1"
+                                               Margin="0,8,0,0"
+                                               Foreground="#647067"
+                                               FontSize="12"
+                                               Text="{Binding CustomMetricSelectionSummary}" />
+                                    <ScrollViewer Grid.Row="2"
+                                                  Margin="0,14,0,0"
+                                                  MaxHeight="360"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding CustomMetricGroups}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,0,0,14">
+                                                        <TextBlock Foreground="#213B35"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Text="{Binding Title}" />
+                                                        <ItemsControl Margin="0,8,0,0"
+                                                                      ItemsSource="{Binding Options}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="0,0,0,8"
+                                                                              Content="{Binding Label}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <StackPanel Grid.Row="3"
+                                                Margin="0,14,0,0"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right">
+                                        <Button Padding="12,5"
+                                                Background="#E7E1D3"
+                                                BorderBrush="#D8CFBE"
+                                                Command="{Binding ResetCustomMetricSelectionCommand}"
+                                                Content="恢复默认"
+                                                Foreground="#213B35" />
+                                        <Button Margin="8,0,0,0"
+                                                Padding="12,5"
+                                                Background="#E7E1D3"
+                                                BorderBrush="#D8CFBE"
+                                                Command="{Binding CancelCustomMetricSelectionCommand}"
+                                                Content="取消"
+                                                Foreground="#213B35" />
+                                        <Button Margin="8,0,0,0"
+                                                Padding="12,5"
+                                                Background="#213B35"
+                                                BorderBrush="#213B35"
+                                                Command="{Binding SaveCustomMetricSelectionCommand}"
+                                                Content="保存"
+                                                Foreground="#FFF7EC"
+                                                IsEnabled="{Binding CanSaveCustomMetricSelection}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <Grid Grid.Column="9">
+                        <Button x:Name="WhitelistButton"
+                                Style="{StaticResource OverviewActionButtonStyle}"
+                                Command="{Binding ToggleWhitelistPopupCommand}"
+                                Content="白名单"
+                                Foreground="#FFF7EC" />
+
+                        <Popup PlacementTarget="{Binding ElementName=WhitelistButton}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               IsOpen="{Binding IsWhitelistPopupOpen, Mode=TwoWay}">
+                            <Border Width="280"
+                                    Margin="0,8,0,0"
+                                    Padding="16"
+                                    Background="#FFFDF9"
+                                    BorderBrush="#D9D0C0"
+                                    BorderThickness="1"
+                                    CornerRadius="20">
+                                <StackPanel>
+                                    <TextBlock Foreground="#213B35"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Text="白名单设置" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="#647067"
+                                               FontSize="12"
+                                               Text="勾选后会从主列表中隐藏该应用" />
+                                    <ScrollViewer Margin="0,12,0,0"
+                                                  MaxHeight="360"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding WhitelistCandidates}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Margin="0,0,0,8"
+                                                              Content="{Binding DisplayName}"
+                                                              IsChecked="{Binding IsWhitelisted, Mode=TwoWay}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <ListBox x:Name="ApplicationsList"
+                     Grid.Row="2"
+                     Grid.ColumnSpan="2"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     SizeChanged="ApplicationsList_OnSizeChanged"
+                     ItemsSource="{Binding ApplicationRows}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Focusable" Value="False" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <ItemsControl ItemsSource="{Binding Items}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="{Binding CardWidth}"
+                                    Height="256"
+                                    Margin="0,0,16,16"
+                                    Padding="18"
+                                    Background="{Binding CardBackground}"
+                                    BorderBrush="{Binding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="28"
+                                    Cursor="Hand"
+                                    ToolTip="{Binding IconToolTip}">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick"
+                                                  Command="{Binding OpenDetailsCommand}" />
+                                </Border.InputBindings>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="60" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="16" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="14" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Panel.ZIndex="2">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Panel.ZIndex" Value="2" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                        <Setter Property="Panel.ZIndex" Value="8" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="54"
+                                                Height="54"
+                                                Background="#F5EBD8"
+                                                CornerRadius="16">
+                                            <Border Background="#F5EBD8"
+                                                    CornerRadius="16">
+                                                <Image Width="34"
+                                                       Height="34"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}"
+                                                       Stretch="Uniform" />
+                                            </Border>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="2"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Foreground="#7D8178"
+                                                       FontSize="12"
+                                                       Text="{Binding StateDisplay}" />
+
+                                            <Grid Margin="0,4,0,0">
+                                                <Button Command="{Binding StartRenameCommand}"
+                                                        ToolTip="{Binding NameToolTip}">
+                                                    <Button.Style>
+                                                        <Style BasedOn="{StaticResource GhostButtonStyle}" TargetType="Button">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <TextBlock FontSize="20"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#213B35"
+                                                               Text="{Binding DisplayName}"
+                                                               TextWrapping="Wrap"
+                                                               Height="44"
+                                                               LineStackingStrategy="BlockLineHeight"
+                                                               LineHeight="22" />
+                                                </Button>
+
+                                                <Grid>
+                                                    <Grid.Style>
+                                                        <Style TargetType="Grid">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="8" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <Border Grid.Row="0"
+                                                            Background="#FFF8EF"
+                                                            BorderBrush="#C8D8CB"
+                                                            BorderThickness="1"
+                                                            CornerRadius="12">
+                                                        <TextBox MinWidth="180"
+                                                                 Padding="12,8"
+                                                                 Background="Transparent"
+                                                                 BorderThickness="0"
+                                                                 FontSize="15"
+                                                                 Foreground="#213B35"
+                                                                 Text="{Binding EditableName, UpdateSourceTrigger=PropertyChanged}">
+                                                            <TextBox.InputBindings>
+                                                                <KeyBinding Key="Enter" Command="{Binding CommitRenameCommand}" />
+                                                                <KeyBinding Key="Escape" Command="{Binding CancelRenameCommand}" />
+                                                            </TextBox.InputBindings>
+                                                        </TextBox>
+                                                    </Border>
+
+                                                    <StackPanel Grid.Row="2"
+                                                                Orientation="Horizontal"
+                                                                HorizontalAlignment="Left">
+                                                        <Button MinWidth="58"
+                                                                Padding="12,5"
+                                                                Background="#213B35"
+                                                                BorderBrush="#213B35"
+                                                                Command="{Binding CommitRenameCommand}"
+                                                                Content="保存"
+                                                                Foreground="#FFF7EC" />
+                                                        <Button Margin="8,0,0,0"
+                                                                MinWidth="58"
+                                                                Padding="12,5"
+                                                                Background="#E7E1D3"
+                                                                BorderBrush="#D8CFBE"
+                                                                Command="{Binding CancelRenameCommand}"
+                                                                Content="取消"
+                                                                Foreground="#213B35" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <ItemsControl Grid.Row="2"
+                                                  Panel.ZIndex="1"
+                                                  Margin="0,0,0,2"
+                                                  ItemsSource="{Binding MetricCards}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="{Binding DataContext.MetricCardColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,0,10,10"
+                                                        Background="#FFFFFF"
+                                                        CornerRadius="18">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Padding" Value="12" />
+                                                            <Setter Property="MinHeight" Value="72" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.MetricCardColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="3">
+                                                                    <Setter Property="Padding" Value="10,9" />
+                                                                    <Setter Property="MinHeight" Value="68" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="#7D8178"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   TextWrapping="NoWrap"
+                                                                   Text="{Binding Label}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="FontSize" Value="11" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DataContext.MetricCardColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="3">
+                                                                            <Setter Property="FontSize" Value="10" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Margin="0,6,0,0"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   TextWrapping="NoWrap"
+                                                                   Text="{Binding Value}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="FontSize" Value="18" />
+                                                                    <Setter Property="Margin" Value="0,6,0,0" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DataContext.MetricCardColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="3">
+                                                                            <Setter Property="FontSize" Value="15" />
+                                                                            <Setter Property="Margin" Value="0,4,0,0" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <StackPanel Grid.Row="4">
+                                        <TextBlock Foreground="#526057"
+                                                   Text="{Binding UsageSummary}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,10,0,0"
+                                                   Foreground="#526057"
+                                                   Text="{Binding PerformanceSummary}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="6"
+                                               Foreground="#7D8178"
+                                               FontSize="12"
+                                               Text="点击卡片查看详情，点击名称可重命名" />
+                                </Grid>
+                            </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+                <Grid x:Name="HistoryPageRoot" Grid.Row="4">
+            <Grid.RenderTransform>
+                <TranslateTransform X="32" />
+            </Grid.RenderTransform>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="IsHitTestVisible" Value="False" />
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Setter Property="Panel.ZIndex" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="IsHitTestVisible" Value="True" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Setter Property="Panel.ZIndex" Value="2" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="False">
+                            <Setter Property="Opacity" Value="0" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Panel.ZIndex" Value="0" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <ContentControl x:Name="HistoryPageHost" />
+        </Grid>
+
+        <Border Grid.RowSpan="3"
+                Panel.ZIndex="100"
+                Background="#8A0F1E1A"
+                Visibility="{Binding IsWindowedOnlyRecordingConfirmOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Border Width="460"
+                        Padding="24"
+                        Background="#FFFDF9"
+                        BorderBrush="#D9D0C0"
+                        BorderThickness="1"
+                        CornerRadius="24"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Foreground="#213B35"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="切换为仅窗口应用记录？" />
+                        <TextBlock Grid.Row="1"
+                                   Margin="0,14,0,0"
+                                   Foreground="#526057"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Text="继续后将删除当天无窗口应用的记录，且不可恢复。之后只会记录有窗口的应用；直到改回“全部应用”，才会从改回时开始重新记录所有应用。" />
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,20,0,0"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right">
+                            <Button Padding="14,7"
+                                    Background="Green"
+                                    BorderBrush="#D8CFBE"
+                                    Command="{Binding CancelEnableWindowedOnlyRecordingCommand}"
+                                    Content="取消"
+                                    Foreground="#FFF7EC" />
+                            <Button Margin="10,0,0,0"
+                                    Padding="14,7"
+                                    Background="#B42318"
+                                    BorderBrush="#B42318"
+                                    Command="{Binding ConfirmEnableWindowedOnlyRecordingCommand}"
+                                    Content="继续"
+                                    Foreground="#FFF7EC" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

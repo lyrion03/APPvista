@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="WinFormsApp1.Application/WinFormsApp1.Application.csproj" />
-  <Project Path="WinFormsApp1.Desktop/WinFormsApp1.Desktop.csproj" />
-  <Project Path="WinFormsApp1.Domain/WinFormsApp1.Domain.csproj" />
-  <Project Path="WinFormsApp1.Infrastructure/WinFormsApp1.Infrastructure.csproj" />
-</Solution>
