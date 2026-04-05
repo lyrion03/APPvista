@@ -4,7 +4,7 @@
         xmlns:services="clr-namespace:APPvista.Desktop.Services"
         Title="APPvista - 应用详情"
         Width="980"
-        Height="920"
+        Height="1120"
         MinWidth="980"
         MinHeight="740"
         Icon="Assets/APPvista.ico"
@@ -331,8 +331,17 @@
                                           IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
                             </MenuItem>
                             <MenuItem Header="绘图尺度"
-                                      Margin="10,0,0,0"
-                                      Style="{StaticResource OverviewMenuItemStyle}">
+                                      Margin="10,0,0,0">
+                                <MenuItem.Style>
+                                    <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCurrentDataMode}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </MenuItem.Style>
                                 <MenuItem Header="30秒"
                                           Command="{Binding SetChartScale30SecondsCommand}"
                                           IsCheckable="True"
@@ -345,6 +354,31 @@
                                           Command="{Binding SetChartScale2MinutesCommand}"
                                           IsCheckable="True"
                                           IsChecked="{Binding IsChartScale2MinutesMode, Mode=OneWay}" />
+                            </MenuItem>
+                            <MenuItem Header="叠加方式"
+                                      Margin="10,0,0,0">
+                                <MenuItem.Style>
+                                    <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHistoryDataMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </MenuItem.Style>
+                                <MenuItem Header="关闭"
+                                          Command="{Binding SetHistoryOverlayOffCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsHistoryOverlayOffMode, Mode=OneWay}" />
+                                <MenuItem Header="使用时长"
+                                          Command="{Binding SetHistoryOverlayUsageDurationCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsHistoryOverlayUsageDurationMode, Mode=OneWay}" />
+                                <MenuItem Header="前台时长"
+                                          Command="{Binding SetHistoryOverlayForegroundDurationCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsHistoryOverlayForegroundDurationMode, Mode=OneWay}" />
                             </MenuItem>
                         </Menu>
                         
@@ -1205,13 +1239,13 @@
 
                                                 <UniformGrid Grid.Row="2"
                                                              Columns="7">
-                                                    <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="日" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="一" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="二" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="三" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="四" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="五" />
                                                     <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="六" />
+                                                    <TextBlock HorizontalAlignment="Center" Foreground="#7B7F74" Text="日" />
                                                 </UniformGrid>
 
                                                 <ItemsControl Grid.Row="4"
@@ -1373,9 +1407,29 @@
                                 Background="#FFF8EF"
                                 CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#7B7F74"
-                                           FontSize="12"
-                                           Text="{Binding HistoryNetworkChartTitle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Foreground="#7B7F74"
+                                               FontSize="12"
+                                               Text="{Binding HistoryNetworkChartTitle}" />
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <TextBlock Margin="0,0,6,0"
+                                                   Foreground="#C9812C"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="←"
+                                                   Visibility="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ShowHistoryChartLeftHint, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <TextBlock Foreground="#C9812C"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="→"
+                                                   Visibility="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ShowHistoryChartRightHint, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Grid>
                                 <Border Height="194"
                                         Margin="0,12,0,0"
                                         CornerRadius="14"
@@ -1385,6 +1439,7 @@
                                                   HorizontalScrollBarVisibility="Hidden"
                                                   VerticalScrollBarVisibility="Disabled"
                                                   PanningMode="HorizontalOnly"
+                                                  ScrollChanged="HistoryChartScrollViewer_OnScrollChanged"
                                                   SizeChanged="HistoryChartScrollViewer_OnSizeChanged"
                                                   PreviewMouseLeftButtonDown="HistoryChartScrollViewer_OnPreviewMouseLeftButtonDown"
                                                   PreviewMouseMove="HistoryChartScrollViewer_OnPreviewMouseMove"
@@ -1408,9 +1463,29 @@
                                 Background="#F7FBF6"
                                 CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#7B7F74"
-                                           FontSize="12"
-                                           Text="{Binding HistoryIoChartTitle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Foreground="#7B7F74"
+                                               FontSize="12"
+                                               Text="{Binding HistoryIoChartTitle}" />
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <TextBlock Margin="0,0,6,0"
+                                                   Foreground="#4D7F73"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="←"
+                                                   Visibility="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ShowHistoryChartLeftHint, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <TextBlock Foreground="#4D7F73"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="→"
+                                                   Visibility="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ShowHistoryChartRightHint, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Grid>
                                 <Border Height="194"
                                         Margin="0,12,0,0"
                                         CornerRadius="14"
@@ -1420,6 +1495,7 @@
                                                   HorizontalScrollBarVisibility="Hidden"
                                                   VerticalScrollBarVisibility="Disabled"
                                                   PanningMode="HorizontalOnly"
+                                                  ScrollChanged="HistoryChartScrollViewer_OnScrollChanged"
                                                   SizeChanged="HistoryChartScrollViewer_OnSizeChanged"
                                                   PreviewMouseLeftButtonDown="HistoryChartScrollViewer_OnPreviewMouseLeftButtonDown"
                                                   PreviewMouseMove="HistoryChartScrollViewer_OnPreviewMouseMove"
@@ -1468,7 +1544,7 @@
                                     <TextBlock Margin="0,4,0,0"
                                                Text="{Binding HistoryAverageIopsDisplay, StringFormat=平均 IOPS {0}}" />
                                     <TextBlock Margin="0,4,0,0"
-                                               Text="{Binding HistoryPeakMemoryDisplay, StringFormat=峰值内存 {0}}" />
+                                               Text="{Binding HistoryMemoryDisplay, StringFormat=内存 {0}}" />
                                     <TextBlock Margin="0,4,0,0"
                                                Text="{Binding HistoryThreadDisplay, StringFormat=线程 {0}}" />
                                 </StackPanel>

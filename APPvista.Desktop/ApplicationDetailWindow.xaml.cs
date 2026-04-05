@@ -14,10 +14,25 @@ public partial class ApplicationDetailWindow : Window
 {
     private const double DetailSwitchOffset = 112d;
     private const double WindowMargin = 24d;
+    private const double HistoryChartScrollHintThreshold = 1d;
     private ScrollViewer? _draggingHistoryChartScrollViewer;
     private System.Windows.Point _historyChartDragStart;
     private double _historyChartDragStartOffset;
     private bool _hasAppliedInitialBounds;
+
+    public static readonly DependencyProperty ShowHistoryChartLeftHintProperty =
+        DependencyProperty.Register(
+            nameof(ShowHistoryChartLeftHint),
+            typeof(bool),
+            typeof(ApplicationDetailWindow),
+            new PropertyMetadata(false));
+
+    public static readonly DependencyProperty ShowHistoryChartRightHintProperty =
+        DependencyProperty.Register(
+            nameof(ShowHistoryChartRightHint),
+            typeof(bool),
+            typeof(ApplicationDetailWindow),
+            new PropertyMetadata(false));
 
     public ApplicationDetailWindow(object viewModel)
     {
@@ -28,6 +43,18 @@ public partial class ApplicationDetailWindow : Window
         Activated += OnActivated;
         Deactivated += OnDeactivated;
         SourceInitialized += OnSourceInitialized;
+    }
+
+    public bool ShowHistoryChartLeftHint
+    {
+        get => (bool)GetValue(ShowHistoryChartLeftHintProperty);
+        set => SetValue(ShowHistoryChartLeftHintProperty, value);
+    }
+
+    public bool ShowHistoryChartRightHint
+    {
+        get => (bool)GetValue(ShowHistoryChartRightHintProperty);
+        set => SetValue(ShowHistoryChartRightHintProperty, value);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -59,6 +86,7 @@ public partial class ApplicationDetailWindow : Window
         }
 
         UpdateDetailSwitchIndicator(animated: false);
+        UpdateHistoryChartScrollHints();
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -91,6 +119,7 @@ public partial class ApplicationDetailWindow : Window
         }
 
         UpdateDetailSwitchIndicator(animated: false);
+        UpdateHistoryChartScrollHints();
     }
 
     private void OnActivated(object? sender, EventArgs e)
@@ -129,7 +158,18 @@ public partial class ApplicationDetailWindow : Window
 
         if (e.PropertyName == nameof(ApplicationDetailViewModel.HistoryChartDisplayWidth))
         {
-            Dispatcher.InvokeAsync(ResetHistoryChartScrollOffsets, DispatcherPriority.Render);
+            Dispatcher.InvokeAsync(() =>
+            {
+                ClampHistoryChartScrollOffsets();
+                UpdateHistoryChartScrollHints();
+            }, DispatcherPriority.Render);
+            return;
+        }
+
+        if (e.PropertyName == nameof(ApplicationDetailViewModel.IsHistoryMonthDimension) ||
+            e.PropertyName == nameof(ApplicationDetailViewModel.IsHistoryDataMode))
+        {
+            Dispatcher.InvokeAsync(UpdateHistoryChartScrollHints, DispatcherPriority.Render);
         }
     }
 
@@ -215,6 +255,17 @@ public partial class ApplicationDetailWindow : Window
     private void HistoryChartScrollViewer_OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateHistoryChartViewportWidth();
+        UpdateHistoryChartScrollHints();
+    }
+
+    private void HistoryChartScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.HorizontalChange == 0d && e.ViewportWidthChange == 0d && e.ExtentWidthChange == 0d)
+        {
+            return;
+        }
+
+        UpdateHistoryChartScrollHints();
     }
 
     private void SyncHistoryChartScrollOffsets()
@@ -226,6 +277,20 @@ public partial class ApplicationDetailWindow : Window
     {
         HistoryNetworkChartScrollViewer.ScrollToHorizontalOffset(0d);
         HistoryIoChartScrollViewer.ScrollToHorizontalOffset(0d);
+        UpdateHistoryChartScrollHints();
+    }
+
+    private void ClampHistoryChartScrollOffsets()
+    {
+        var targetOffset = Math.Min(
+            HistoryNetworkChartScrollViewer.HorizontalOffset,
+            HistoryNetworkChartScrollViewer.ScrollableWidth);
+        targetOffset = Math.Min(targetOffset, HistoryIoChartScrollViewer.ScrollableWidth);
+        targetOffset = Math.Max(0d, targetOffset);
+
+        HistoryNetworkChartScrollViewer.ScrollToHorizontalOffset(targetOffset);
+        HistoryIoChartScrollViewer.ScrollToHorizontalOffset(targetOffset);
+        UpdateHistoryChartScrollHints();
     }
 
     private void UpdateHistoryChartViewportWidth()
@@ -257,10 +322,12 @@ public partial class ApplicationDetailWindow : Window
         if (activeScrollViewer == HistoryNetworkChartScrollViewer)
         {
             HistoryIoChartScrollViewer.ScrollToHorizontalOffset(Math.Min(activeScrollViewer.HorizontalOffset, HistoryIoChartScrollViewer.ScrollableWidth));
+            UpdateHistoryChartScrollHints();
             return;
         }
 
         HistoryNetworkChartScrollViewer.ScrollToHorizontalOffset(Math.Min(activeScrollViewer.HorizontalOffset, HistoryNetworkChartScrollViewer.ScrollableWidth));
+        UpdateHistoryChartScrollHints();
     }
 
     private void ReleaseHistoryChartDrag()
@@ -272,6 +339,34 @@ public partial class ApplicationDetailWindow : Window
 
         _draggingHistoryChartScrollViewer = null;
         Mouse.OverrideCursor = null;
+    }
+
+    private void UpdateHistoryChartScrollHints()
+    {
+        if (DataContext is not ApplicationDetailViewModel viewModel ||
+            !viewModel.IsHistoryDataMode ||
+            !viewModel.IsHistoryMonthDimension)
+        {
+            ShowHistoryChartLeftHint = false;
+            ShowHistoryChartRightHint = false;
+            return;
+        }
+
+        var activeScrollViewer = HistoryNetworkChartScrollViewer.ScrollableWidth >= HistoryIoChartScrollViewer.ScrollableWidth
+            ? HistoryNetworkChartScrollViewer
+            : HistoryIoChartScrollViewer;
+        var scrollableWidth = activeScrollViewer.ScrollableWidth;
+
+        if (scrollableWidth <= HistoryChartScrollHintThreshold)
+        {
+            ShowHistoryChartLeftHint = false;
+            ShowHistoryChartRightHint = false;
+            return;
+        }
+
+        var offset = activeScrollViewer.HorizontalOffset;
+        ShowHistoryChartLeftHint = offset > HistoryChartScrollHintThreshold;
+        ShowHistoryChartRightHint = offset < scrollableWidth - HistoryChartScrollHintThreshold;
     }
 
     private void ScheduleCleanupCollection()

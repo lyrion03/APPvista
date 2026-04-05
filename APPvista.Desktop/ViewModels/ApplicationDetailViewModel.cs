@@ -115,6 +115,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             DetailDisplayPreferences.ChartScale1MinuteOption,
             DetailDisplayPreferences.ChartScale2MinutesOption
         ]);
+        HistoryOverlayOptions = new ObservableCollection<string>(
+        [
+            DetailDisplayPreferences.HistoryOverlayOffOption,
+            DetailDisplayPreferences.HistoryOverlayUsageDurationOption,
+            DetailDisplayPreferences.HistoryOverlayForegroundDurationOption
+        ]);
         HistoryCalendarDays = new ObservableCollection<ApplicationHistoryCalendarDayViewModel>();
 
         SetNetworkHiddenDisplayCommand = new RelayCommand(() => SelectedNetworkDisplayOption = DetailDisplayPreferences.HiddenOption);
@@ -126,6 +132,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         SetChartScale30SecondsCommand = new RelayCommand(() => SelectedChartScaleOption = DetailDisplayPreferences.ChartScale30SecondsOption);
         SetChartScale1MinuteCommand = new RelayCommand(() => SelectedChartScaleOption = DetailDisplayPreferences.ChartScale1MinuteOption);
         SetChartScale2MinutesCommand = new RelayCommand(() => SelectedChartScaleOption = DetailDisplayPreferences.ChartScale2MinutesOption);
+        SetHistoryOverlayOffCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayOffOption);
+        SetHistoryOverlayUsageDurationCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayUsageDurationOption);
+        SetHistoryOverlayForegroundDurationCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayForegroundDurationOption);
         ShowCurrentDataCommand = new RelayCommand(ShowCurrentData);
         ShowHistoryDataCommand = new RelayCommand(ShowHistoryData);
         SetHistoryDayDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Day));
@@ -148,6 +157,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> IoDisplayOptions { get; }
     public ObservableCollection<string> ForegroundBackgroundOptions { get; }
     public ObservableCollection<string> ChartScaleOptions { get; }
+    public ObservableCollection<string> HistoryOverlayOptions { get; }
     public ObservableCollection<ApplicationHistoryCalendarDayViewModel> HistoryCalendarDays { get; }
 
     public string DisplayName => _application.DisplayName;
@@ -201,7 +211,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public string HistoryIoDisplay => BuildHistoryIoDisplay();
     public string HistoryAverageCpuDisplay => _historySummary.AverageCpuDisplay;
     public string HistoryAverageIopsDisplay => _historySummary.AverageIopsDisplay;
-    public string HistoryPeakMemoryDisplay => _historySummary.PeakWorkingSetDisplay;
+    public string HistoryMemoryDisplay => _historySummary.MemorySummaryDisplay;
     public string HistoryThreadDisplay => _historySummary.ThreadSummaryDisplay;
     public string HistoryExecutablePathDisplay => _historySummary.ExecutablePathDisplay;
     public string TodayFocusRatio => BuildFocusRatio(Snapshot.DailyForegroundMilliseconds, Snapshot.DailyBackgroundMilliseconds);
@@ -230,6 +240,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         set => _preferences.ChartScaleOption = value;
     }
 
+    public string SelectedHistoryOverlayOption
+    {
+        get => _preferences.HistoryOverlayOption;
+        set => _preferences.HistoryOverlayOption = value;
+    }
+
     public bool IsNetworkHiddenMode => _preferences.NetworkDisplayOption == DetailDisplayPreferences.HiddenOption;
     public bool IsNetworkTotalMode => _preferences.NetworkDisplayOption == DetailDisplayPreferences.TotalOption;
     public bool IsNetworkSplitMode => _preferences.NetworkDisplayOption == DetailDisplayPreferences.SplitOption;
@@ -239,6 +255,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public bool IsChartScale30SecondsMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale30SecondsOption;
     public bool IsChartScale1MinuteMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale1MinuteOption;
     public bool IsChartScale2MinutesMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale2MinutesOption;
+    public bool IsHistoryOverlayOffMode => _preferences.HistoryOverlayOption == DetailDisplayPreferences.HistoryOverlayOffOption;
+    public bool IsHistoryOverlayUsageDurationMode => _preferences.HistoryOverlayOption == DetailDisplayPreferences.HistoryOverlayUsageDurationOption;
+    public bool IsHistoryOverlayForegroundDurationMode => _preferences.HistoryOverlayOption == DetailDisplayPreferences.HistoryOverlayForegroundDurationOption;
 
     public string ProcessCountDisplay => Snapshot.ProcessCount.ToString(CultureInfo.InvariantCulture);
     public string ProcessIdDisplay => Snapshot.ProcessId.ToString(CultureInfo.InvariantCulture);
@@ -373,6 +392,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public ICommand SetChartScale30SecondsCommand { get; }
     public ICommand SetChartScale1MinuteCommand { get; }
     public ICommand SetChartScale2MinutesCommand { get; }
+    public ICommand SetHistoryOverlayOffCommand { get; }
+    public ICommand SetHistoryOverlayUsageDurationCommand { get; }
+    public ICommand SetHistoryOverlayForegroundDurationCommand { get; }
     public ICommand ShowCurrentDataCommand { get; }
     public ICommand ShowHistoryDataCommand { get; }
     public ICommand SetHistoryDayDimensionCommand { get; }
@@ -504,10 +526,16 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var previousDimension = _selectedHistoryDimension;
         _selectedHistoryDimension = dimension;
         if (dimension == HistoryAnalysisDimension.Month)
         {
             _historySelectedDate = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
+        else if (dimension == HistoryAnalysisDimension.Day)
+        {
+            _historySelectedDate = ResolveDayHistorySelection(previousDimension, _historySelectedDate);
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
         }
 
         ApplyHistorySelection();
@@ -595,7 +623,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     {
         HistoryCalendarDays.Clear();
 
-        var firstVisible = _historyDisplayedMonth.AddDays(-(int)_historyDisplayedMonth.DayOfWeek);
+        var firstVisible = GetWeekStart(_historyDisplayedMonth);
         var selectedWeekStart = GetWeekStart(_historySelectedDate);
         var selectedWeekEnd = selectedWeekStart.AddDays(6);
         var monthStart = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
@@ -884,6 +912,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(SelectedIoDisplayOption));
         RaisePropertyChanged(nameof(SelectedForegroundBackgroundOption));
         RaisePropertyChanged(nameof(SelectedChartScaleOption));
+        RaisePropertyChanged(nameof(SelectedHistoryOverlayOption));
         RaisePropertyChanged(nameof(IsNetworkHiddenMode));
         RaisePropertyChanged(nameof(IsNetworkTotalMode));
         RaisePropertyChanged(nameof(IsNetworkSplitMode));
@@ -893,6 +922,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(IsChartScale30SecondsMode));
         RaisePropertyChanged(nameof(IsChartScale1MinuteMode));
         RaisePropertyChanged(nameof(IsChartScale2MinutesMode));
+        RaisePropertyChanged(nameof(IsHistoryOverlayOffMode));
+        RaisePropertyChanged(nameof(IsHistoryOverlayUsageDurationMode));
+        RaisePropertyChanged(nameof(IsHistoryOverlayForegroundDurationMode));
         RaisePropertyChanged(nameof(ShowNetworkHiddenNotice));
         RaisePropertyChanged(nameof(ShowNetworkTotals));
         RaisePropertyChanged(nameof(ShowNetworkSplit));
@@ -941,7 +973,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryIoDisplay));
         RaisePropertyChanged(nameof(HistoryAverageCpuDisplay));
         RaisePropertyChanged(nameof(HistoryAverageIopsDisplay));
-        RaisePropertyChanged(nameof(HistoryPeakMemoryDisplay));
+        RaisePropertyChanged(nameof(HistoryMemoryDisplay));
         RaisePropertyChanged(nameof(HistoryThreadDisplay));
         RaisePropertyChanged(nameof(HistoryExecutablePathDisplay));
         RaisePropertyChanged(nameof(HistoryNetworkChartTitle));
@@ -1067,11 +1099,13 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             .ToArray();
         var isNetworkSplit = _preferences.IsNetworkSplit;
         var isIoSplit = _preferences.IsIoSplit;
+        var historyOverlayOption = _preferences.HistoryOverlayOption;
         var renderWidth = GetHistoryChartRenderWidth(records.Length, _historyChartViewportWidth);
+        var showOverlayRightAxis = renderWidth > _historyChartViewportWidth + 1d;
 
         var chartResult = await Task.Run(() => new ChartRenderResult(
-            BuildHistoryChartImage(records, isNetworkSplit, isNetwork: true, _selectedHistoryDimension, renderWidth),
-            BuildHistoryChartImage(records, isIoSplit, isNetwork: false, _selectedHistoryDimension, renderWidth)));
+            BuildHistoryChartImage(records, isNetworkSplit, isNetwork: true, _selectedHistoryDimension, renderWidth, historyOverlayOption, showOverlayRightAxis),
+            BuildHistoryChartImage(records, isIoSplit, isNetwork: false, _selectedHistoryDimension, renderWidth, historyOverlayOption, showOverlayRightAxis)));
 
         if (_isDisposed || renderVersion != Volatile.Read(ref _historyChartRenderVersion))
         {
@@ -1091,7 +1125,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         bool splitMode,
         bool isNetwork,
         HistoryAnalysisDimension dimension,
-        int renderWidth)
+        int renderWidth,
+        string historyOverlayOption,
+        bool showOverlayRightAxis)
     {
         if (records.Length == 0)
         {
@@ -1109,12 +1145,16 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             ? Math.Max(primary.Max(), secondary.Max())
             : total.Max();
         var yAxisMax = maxValue > 0d ? maxValue * 1.1d : 1d;
+        var overlayValues = BuildHistoryOverlayValues(records, historyOverlayOption);
 
         using var surface = SKSurface.Create(new SKImageInfo(renderWidth, HistoryChartHeight, SKColorType.Bgra8888, SKAlphaType.Premul));
         var canvas = surface.Canvas;
         canvas.Clear(SKColor.Parse(isNetwork ? "#FFF8EF" : "#F7FBF6"));
 
-        var plotRect = new SKRect(26, 14, renderWidth - 14, HistoryChartHeight - 30);
+        var hasOverlayAxis = overlayValues.Length > 0;
+        var plotLeft = hasOverlayAxis ? 50f : 26f;
+        var plotRight = renderWidth - (showOverlayRightAxis ? 50f : 14f);
+        var plotRect = new SKRect(plotLeft, 14, plotRight, HistoryChartHeight - 30);
         using var gridPaint = new SKPaint
         {
             Color = SKColor.Parse(isNetwork ? "#EEDFCF" : "#DCE9E1"),
@@ -1136,11 +1176,44 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             Color = SKColor.Parse(isNetwork ? "#2A6FBB" : "#176B5A"),
             IsAntialias = true
         };
+        using var overlayLinePaint = new SKPaint
+        {
+            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(150),
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2.2f
+        };
+        using var overlayPointPaint = new SKPaint
+        {
+            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(165),
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
+        using var overlayAxisTextPaint = new SKPaint
+        {
+            Color = SKColor.Parse("#6B6F68").WithAlpha(205),
+            IsAntialias = true,
+            TextSize = 10,
+            TextAlign = SKTextAlign.Left,
+            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+        };
+        using var overlayAxisBackgroundPaint = new SKPaint
+        {
+            Color = SKColor.Parse(isNetwork ? "#FFF8EF" : "#F7FBF6").WithAlpha(225),
+            IsAntialias = true
+        };
         using var labelTextPaint = new SKPaint
         {
             Color = SKColor.Parse("#223B35"),
             IsAntialias = true,
             TextSize = 11,
+            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+        };
+        using var splitLabelTextPaint = new SKPaint
+        {
+            Color = SKColor.Parse("#223B35"),
+            IsAntialias = true,
+            TextSize = 9,
             Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
         };
         using var labelBackgroundPaint = new SKPaint
@@ -1176,7 +1249,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : records.Length <= HistoryChartVisibleBars ? 0.58f : 0.5f;
         var maxWidth = dimension == HistoryAnalysisDimension.Day ? 58f : 52f;
         var groupWidth = Math.Max(4f, Math.Min(maxWidth, slotWidth * widthFactor));
-        var showLabels = records.Length <= 14;
+        var showLabels = splitMode ? records.Length <= 10 : records.Length <= 14;
 
         for (var i = 0; i < records.Length; i++)
         {
@@ -1196,8 +1269,29 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
                 if (showLabels)
                 {
-                    DrawHistoryBarLabel(canvas, labelBackgroundPaint, labelBorderPaint, labelTextPaint, left, barWidth, primary[i], yAxisMax, plotRect);
-                    DrawHistoryBarLabel(canvas, labelBackgroundPaint, labelBorderPaint, labelTextPaint, left + barWidth + gap, barWidth, secondary[i], yAxisMax, plotRect);
+                    var primaryLabelRect = DrawHistoryBarLabel(
+                        canvas,
+                        labelBackgroundPaint,
+                        labelBorderPaint,
+                        splitLabelTextPaint,
+                        left,
+                        barWidth,
+                        primary[i],
+                        yAxisMax,
+                        plotRect,
+                        compactMode: true);
+                    DrawHistoryBarLabel(
+                        canvas,
+                        labelBackgroundPaint,
+                        labelBorderPaint,
+                        splitLabelTextPaint,
+                        left + barWidth + gap,
+                        barWidth,
+                        secondary[i],
+                        yAxisMax,
+                        plotRect,
+                        compactMode: true,
+                        avoidRect: primaryLabelRect);
                 }
 
                 DrawHistoryDateLabel(canvas, dateTextPaint, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
@@ -1215,6 +1309,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                 DrawHistoryDateLabel(canvas, dateTextPaint, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
             }
         }
+
+        DrawHistoryOverlayLine(canvas, overlayLinePaint, overlayPointPaint, overlayValues, plotRect);
+        DrawHistoryOverlayAxisLabels(canvas, overlayAxisTextPaint, overlayAxisBackgroundPaint, overlayValues, plotRect, renderWidth, showOverlayRightAxis);
 
         return new SingleChartRenderResult(CreateBitmapBuffer(surface, renderWidth, HistoryChartHeight), FormatBytes(yAxisMax));
     }
@@ -1290,7 +1387,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         canvas.DrawRoundRect(rect, 4, 4, paint);
     }
 
-    private static void DrawHistoryBarLabel(
+    private static SKRect? DrawHistoryBarLabel(
         SKCanvas canvas,
         SKPaint backgroundPaint,
         SKPaint borderPaint,
@@ -1299,35 +1396,190 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         float width,
         double value,
         double maxValue,
-        SKRect plotRect)
+        SKRect plotRect,
+        bool compactMode = false,
+        SKRect? avoidRect = null)
     {
         if (value <= 0 || maxValue <= 0)
         {
-            return;
+            return null;
         }
 
-        var label = FormatBytes(value);
+        var label = compactMode ? FormatCompactBytes(value) : FormatBytes(value);
         var bounds = new SKRect();
         textPaint.MeasureText(label, ref bounds);
-        var paddingX = 6f;
+        var paddingX = compactMode ? 4f : 6f;
         var labelWidth = bounds.Width + paddingX * 2;
-        var labelHeight = 18f;
-        const float labelGap = 4f;
-        const float labelHeadroom = 24f;
+        var labelHeight = compactMode ? 14f : 18f;
+        var labelGap = compactMode ? 2f : 4f;
+        var labelHeadroom = compactMode ? 18f : 24f;
         var drawableHeight = Math.Max(0f, plotRect.Height - labelHeadroom);
         var height = (float)(value / maxValue * drawableHeight);
         var centerX = left + width / 2f;
         var labelTop = Math.Max(plotRect.Top + 2, plotRect.Bottom - height - labelHeight - labelGap);
-        var labelBottom = labelTop + labelHeight;
-        var rect = new SKRect(
-            centerX - labelWidth / 2f,
-            labelTop,
-            centerX + labelWidth / 2f,
-            labelBottom);
+        var rect = CreateLabelRect(centerX, labelWidth, labelHeight, labelTop);
+
+        if (avoidRect is SKRect otherRect && rect.IntersectsWith(otherRect))
+        {
+            var shiftedTop = otherRect.Top - labelHeight - labelGap;
+            if (shiftedTop < plotRect.Top + 2)
+            {
+                return null;
+            }
+
+            rect = CreateLabelRect(centerX, labelWidth, labelHeight, shiftedTop);
+            if (rect.IntersectsWith(otherRect))
+            {
+                return null;
+            }
+        }
+
         var textBaseline = rect.MidY - (bounds.Top + bounds.Bottom) / 2f;
         canvas.DrawRoundRect(rect, 7, 7, backgroundPaint);
         canvas.DrawRoundRect(rect, 7, 7, borderPaint);
         canvas.DrawText(label, rect.Left + paddingX, textBaseline, textPaint);
+        return rect;
+    }
+
+    private static SKRect CreateLabelRect(float centerX, float labelWidth, float labelHeight, float labelTop)
+    {
+        var labelBottom = labelTop + labelHeight;
+        return new SKRect(
+            centerX - labelWidth / 2f,
+            labelTop,
+            centerX + labelWidth / 2f,
+            labelBottom);
+    }
+
+    private static double[] BuildHistoryOverlayValues(IReadOnlyList<DailyProcessActivitySummary> records, string historyOverlayOption)
+    {
+        return historyOverlayOption switch
+        {
+            DetailDisplayPreferences.HistoryOverlayUsageDurationOption => records
+                .Select(record => (double)(record.ForegroundMilliseconds + record.BackgroundMilliseconds))
+                .ToArray(),
+            DetailDisplayPreferences.HistoryOverlayForegroundDurationOption => records
+                .Select(record => (double)record.ForegroundMilliseconds)
+                .ToArray(),
+            _ => []
+        };
+    }
+
+    private static void DrawHistoryOverlayLine(
+        SKCanvas canvas,
+        SKPaint linePaint,
+        SKPaint pointPaint,
+        IReadOnlyList<double> values,
+        SKRect plotRect)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        var overlayMax = values.Max();
+        if (overlayMax <= 0d)
+        {
+            return;
+        }
+
+        if (values.Count == 1)
+        {
+            var singlePointDrawableHeight = Math.Max(0f, plotRect.Height - 8f);
+            var centerX = plotRect.MidX;
+            var normalizedHeight = (float)(values[0] / overlayMax * singlePointDrawableHeight);
+            var point = new SKPoint(centerX, plotRect.Bottom - normalizedHeight);
+            canvas.DrawCircle(point, 3.6f, pointPaint);
+            return;
+        }
+
+        var points = new SKPoint[values.Count];
+        var slotWidth = plotRect.Width / Math.Max(values.Count, 1);
+        var drawableHeight = Math.Max(0f, plotRect.Height - 8f);
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            var centerX = plotRect.Left + i * slotWidth + slotWidth / 2f;
+            var normalizedHeight = (float)(values[i] / overlayMax * drawableHeight);
+            points[i] = new SKPoint(centerX, plotRect.Bottom - normalizedHeight);
+        }
+
+        using var path = new SKPath();
+        path.MoveTo(points[0]);
+        for (var i = 1; i < points.Length; i++)
+        {
+            path.LineTo(points[i]);
+        }
+
+        canvas.DrawPath(path, linePaint);
+
+        var drawPoints = values.Count <= 14;
+        if (!drawPoints)
+        {
+            return;
+        }
+
+        foreach (var point in points)
+        {
+            canvas.DrawCircle(point, 2.6f, pointPaint);
+        }
+    }
+
+    private static void DrawHistoryOverlayAxisLabels(
+        SKCanvas canvas,
+        SKPaint textPaint,
+        SKPaint backgroundPaint,
+        IReadOnlyList<double> values,
+        SKRect plotRect,
+        int renderWidth,
+        bool showRightAxis)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        var overlayMax = values.Max();
+        if (overlayMax <= 0d)
+        {
+            return;
+        }
+
+        const int tickCount = 4;
+        for (var i = 0; i < tickCount; i++)
+        {
+            var ratio = 1d - i / (double)(tickCount - 1);
+            var value = overlayMax * ratio;
+            var label = FormatCompactDurationLabel(value);
+            var y = plotRect.Top + (float)((plotRect.Height / (tickCount - 1)) * i);
+            var bounds = new SKRect();
+            textPaint.MeasureText(label, ref bounds);
+            DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, label, bounds, 10f, y, alignRight: false);
+
+            if (showRightAxis)
+            {
+                var rightX = renderWidth - 8f;
+                DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, label, bounds, rightX, y, alignRight: true);
+            }
+        }
+    }
+
+    private static void DrawOverlayAxisLabel(
+        SKCanvas canvas,
+        SKPaint textPaint,
+        SKPaint backgroundPaint,
+        string label,
+        SKRect bounds,
+        float x,
+        float y,
+        bool alignRight)
+    {
+        var rect = alignRight
+            ? new SKRect(x - bounds.Width - 12f, y - 8f, x, y + 8f)
+            : new SKRect(x, y - 8f, x + bounds.Width + 12f, y + 8f);
+
+        canvas.DrawRoundRect(rect, 6, 6, backgroundPaint);
+        canvas.DrawText(label, rect.Left + 4f, y + 3.5f, textPaint);
     }
 
     private static SKColor GetHistoryBarColor(string baseHex, int tintIndex)
@@ -1411,7 +1663,36 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private static DateOnly GetWeekStart(DateOnly date)
     {
-        return date.AddDays(-(int)date.DayOfWeek);
+        var offset = ((int)date.DayOfWeek + 6) % 7;
+        return date.AddDays(-offset);
+    }
+
+    private DateOnly ResolveDayHistorySelection(HistoryAnalysisDimension previousDimension, DateOnly selectedDate)
+    {
+        var rangeStart = previousDimension switch
+        {
+            HistoryAnalysisDimension.Week => GetWeekStart(selectedDate),
+            HistoryAnalysisDimension.Month => new DateOnly(selectedDate.Year, selectedDate.Month, 1),
+            _ => selectedDate
+        };
+        var rangeEnd = previousDimension switch
+        {
+            HistoryAnalysisDimension.Week => GetWeekStart(selectedDate).AddDays(6),
+            HistoryAnalysisDimension.Month => new DateOnly(selectedDate.Year, selectedDate.Month, 1).AddMonths(1).AddDays(-1),
+            _ => selectedDate
+        };
+
+        var earliestDateWithData = _allHistoryDailyRecords
+            .Select(static record => DateOnly.TryParseExact(record.Day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+                ? day
+                : (DateOnly?)null)
+            .Where(static day => day is not null)
+            .Select(static day => day!.Value)
+            .Where(day => day >= rangeStart && day <= rangeEnd)
+            .OrderBy(static day => day)
+            .FirstOrDefault();
+
+        return earliestDateWithData != default ? earliestDateWithData : rangeStart;
     }
 
     private static ApplicationHistorySummary BuildHistorySummary(
@@ -1449,6 +1730,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var totalIoWriteBytes = ordered.Sum(record => record.IoWriteBytes);
         var averageCpuSamples = ordered.Sum(record => record.ForegroundSamples + record.BackgroundSamples);
         var averageCpuTotal = ordered.Sum(record => record.ForegroundCpuTotal + record.BackgroundCpuTotal);
+        var averageMemorySamples = ordered.Sum(record => record.ForegroundSamples + record.BackgroundSamples);
+        var averageMemoryTotal = ordered.Sum(record => record.ForegroundWorkingSetTotal + record.BackgroundWorkingSetTotal);
         var peakWorkingSetBytes = ordered.Max(record => record.PeakWorkingSetBytes);
         var averageIops = ordered.Average(record => record.AverageIops);
         var averageThreadCount = ordered.Average(record => record.AverageThreadCount);
@@ -1461,6 +1744,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             ? totalForegroundMilliseconds / (double)(totalForegroundMilliseconds + totalBackgroundMilliseconds)
             : 0d;
         var averageCpu = averageCpuSamples > 0 ? averageCpuTotal / averageCpuSamples : 0d;
+        var averageMemoryBytes = averageMemorySamples > 0 ? averageMemoryTotal / averageMemorySamples : 0d;
 
         return new ApplicationHistorySummary
         {
@@ -1477,7 +1761,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             TotalIoDisplay = FormatBytes(totalIoReadBytes + totalIoWriteBytes),
             AverageCpuDisplay = $"{averageCpu:F1}%",
             AverageIopsDisplay = averageIops.ToString("F1", CultureInfo.InvariantCulture),
-            PeakWorkingSetDisplay = FormatBytes(peakWorkingSetBytes),
+            MemorySummaryDisplay = $"均值 {FormatBytes(averageMemoryBytes)} / 峰值 {FormatBytes(peakWorkingSetBytes)}",
             ThreadSummaryDisplay = $"均值 {averageThreadCount:F1} / 峰值 {peakThreadCount}",
             ExecutablePathDisplay = executablePath,
             ChartStartLabel = firstDay,
@@ -1519,6 +1803,43 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private static string FormatBytes(long bytes) => FormatBytes((double)bytes);
 
+    private static string FormatCompactBytes(double bytes)
+    {
+        var value = bytes;
+        var units = new[] { "B", "K", "M", "G", "T" };
+        var unitIndex = 0;
+
+        while (value >= 1024d && unitIndex < units.Length - 1)
+        {
+            value /= 1024d;
+            unitIndex++;
+        }
+
+        var decimals = value >= 100d ? 0 : value >= 10d ? 0 : 1;
+        return value.ToString($"F{decimals}", CultureInfo.InvariantCulture) + units[unitIndex];
+    }
+
+    private static string FormatCompactDurationLabel(double milliseconds)
+    {
+        if (milliseconds <= 0d)
+        {
+            return "0m";
+        }
+
+        var duration = TimeSpan.FromMilliseconds(milliseconds);
+        if (duration.TotalHours >= 1d)
+        {
+            return $"{(int)duration.TotalHours}h{duration.Minutes:D2}";
+        }
+
+        if (duration.TotalMinutes >= 1d)
+        {
+            return $"{(int)duration.TotalMinutes}m";
+        }
+
+        return $"{Math.Max(1, duration.Seconds)}s";
+    }
+
     private static string FormatDuration(long milliseconds)
     {
         if (milliseconds <= 0)
@@ -1559,7 +1880,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             TotalIoDisplay = "0 B",
             AverageCpuDisplay = "0.0%",
             AverageIopsDisplay = "0.0",
-            PeakWorkingSetDisplay = "0 B",
+            MemorySummaryDisplay = "均值 0 B / 峰值 0 B",
             ThreadSummaryDisplay = "均值 0.0 / 峰值 0",
             ExecutablePathDisplay = "-",
             ChartStartLabel = "-",
@@ -1579,7 +1900,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public string TotalIoDisplay { get; init; } = string.Empty;
         public string AverageCpuDisplay { get; init; } = string.Empty;
         public string AverageIopsDisplay { get; init; } = string.Empty;
-        public string PeakWorkingSetDisplay { get; init; } = string.Empty;
+        public string MemorySummaryDisplay { get; init; } = string.Empty;
         public string ThreadSummaryDisplay { get; init; } = string.Empty;
         public string ExecutablePathDisplay { get; init; } = string.Empty;
         public string ChartStartLabel { get; init; } = string.Empty;

@@ -9,11 +9,15 @@ public sealed class DetailDisplayPreferences : ObservableObject
     public const string ChartScale30SecondsOption = "30秒";
     public const string ChartScale1MinuteOption = "1分钟";
     public const string ChartScale2MinutesOption = "2分钟";
+    public const string HistoryOverlayOffOption = "关闭";
+    public const string HistoryOverlayUsageDurationOption = "使用时长";
+    public const string HistoryOverlayForegroundDurationOption = "前台时长";
 
     private string _networkDisplayOption = TotalOption;
     private string _ioDisplayOption = TotalOption;
     private string _foregroundBackgroundOption = HiddenOption;
     private string _chartScaleOption = ChartScale30SecondsOption;
+    private string _historyOverlayOption = HistoryOverlayOffOption;
 
     public string NetworkDisplayOption
     {
@@ -39,6 +43,12 @@ public sealed class DetailDisplayPreferences : ObservableObject
         set => SetProperty(ref _chartScaleOption, NormalizeChartScaleOption(value));
     }
 
+    public string HistoryOverlayOption
+    {
+        get => _historyOverlayOption;
+        set => SetProperty(ref _historyOverlayOption, NormalizeHistoryOverlayOption(value));
+    }
+
     public int ChartHistorySeconds => ChartScaleOption switch
     {
         ChartScale2MinutesOption => 120,
@@ -51,6 +61,7 @@ public sealed class DetailDisplayPreferences : ObservableObject
     public bool IsIoHidden => IoDisplayOption == HiddenOption;
     public bool IsIoSplit => IoDisplayOption == SplitOption;
     public bool IsForegroundBackgroundVisible => ForegroundBackgroundOption == VisibleOption;
+    public bool IsHistoryOverlayEnabled => HistoryOverlayOption != HistoryOverlayOffOption;
 
     private static string NormalizeNetworkOption(string? value)
     {
@@ -87,6 +98,16 @@ public sealed class DetailDisplayPreferences : ObservableObject
         };
     }
 
+    private static string NormalizeHistoryOverlayOption(string? value)
+    {
+        return value switch
+        {
+            HistoryOverlayUsageDurationOption => HistoryOverlayUsageDurationOption,
+            HistoryOverlayForegroundDurationOption => HistoryOverlayForegroundDurationOption,
+            _ => HistoryOverlayOffOption
+        };
+    }
+
     protected override void RaisePropertyChanged(string? propertyName = null)
     {
         base.RaisePropertyChanged(propertyName);
@@ -111,6 +132,11 @@ public sealed class DetailDisplayPreferences : ObservableObject
         if (propertyName is nameof(ChartScaleOption))
         {
             base.RaisePropertyChanged(nameof(ChartHistorySeconds));
+        }
+
+        if (propertyName is nameof(HistoryOverlayOption))
+        {
+            base.RaisePropertyChanged(nameof(IsHistoryOverlayEnabled));
         }
     }
 }

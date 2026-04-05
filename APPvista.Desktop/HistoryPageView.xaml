@@ -202,6 +202,16 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Border Margin="0,16,0,0"
+                                        Padding="8"
+                                        Background="#FCF8F1"
+                                        BorderBrush="#E7DDCC"
+                                        BorderThickness="1"
+                                        CornerRadius="18">
+                                    <Image Height="332"
+                                           Stretch="Uniform"
+                                           Source="{Binding HistoryForegroundPieChartSource}" />
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -227,6 +237,16 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Border Margin="0,16,0,0"
+                                        Padding="8"
+                                        Background="#FCF8F1"
+                                        BorderBrush="#E7DDCC"
+                                        BorderThickness="1"
+                                        CornerRadius="18">
+                                    <Image Height="332"
+                                           Stretch="Uniform"
+                                           Source="{Binding HistoryTrafficPieChartSource}" />
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -252,6 +272,16 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Border Margin="0,16,0,0"
+                                        Padding="8"
+                                        Background="#FCF8F1"
+                                        BorderBrush="#E7DDCC"
+                                        BorderThickness="1"
+                                        CornerRadius="18">
+                                    <Image Height="332"
+                                           Stretch="Uniform"
+                                           Source="{Binding HistoryIoPieChartSource}" />
+                                </Border>
                             </StackPanel>
                         </Border>
                     </Grid>

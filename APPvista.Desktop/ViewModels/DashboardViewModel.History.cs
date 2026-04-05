@@ -1,6 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using APPvista.Desktop.Services;
 
 namespace APPvista.Desktop.ViewModels;
@@ -42,6 +44,9 @@ public sealed partial class DashboardViewModel
     private int _historyAverageApplicationCount;
     private int _historyTopN = 3;
     private IReadOnlyList<HistoryDailyRecord> _historyCalendarRecords = [];
+    private ImageSource? _historyTrafficPieChartSource;
+    private ImageSource? _historyIoPieChartSource;
+    private ImageSource? _historyForegroundPieChartSource;
     private int _historyAnalysisLoadVersion;
 
     public ObservableCollection<HistoryCalendarDayViewModel> HistoryCalendarDays { get; }
@@ -92,10 +97,13 @@ public sealed partial class DashboardViewModel
     public string HistoryTrafficTopTitle => $"流量 Top {_historyTopN} 应用";
     public string HistoryIoTopTitle => $"I/O Top {_historyTopN} 应用";
     public string HistoryForegroundTopTitle => $"前台时长 Top {_historyTopN} 应用";
+    public ImageSource? HistoryTrafficPieChartSource => _historyTrafficPieChartSource;
+    public ImageSource? HistoryIoPieChartSource => _historyIoPieChartSource;
+    public ImageSource? HistoryForegroundPieChartSource => _historyForegroundPieChartSource;
 
     public string HistoryCalendarSelectionDisplay => _selectedHistoryDimension switch
     {
-        HistoryDimension.Week => $"已选周：{_historySelectedDate.AddDays(-(int)_historySelectedDate.DayOfWeek):yyyy-MM-dd} 起",
+        HistoryDimension.Week => $"已选周：{GetWeekStart(_historySelectedDate):yyyy-MM-dd} 起",
         HistoryDimension.Month => $"已选月：{_historyDisplayedMonth:yyyy 年 MM 月}",
         _ => $"已选日：{_historySelectedDate:yyyy-MM-dd}"
     };
@@ -204,10 +212,16 @@ public sealed partial class DashboardViewModel
             return;
         }
 
+        var previousDimension = _selectedHistoryDimension;
         _selectedHistoryDimension = dimension;
         if (dimension == HistoryDimension.Month)
         {
             _historySelectedDate = _historyDisplayedMonth;
+        }
+        else if (dimension == HistoryDimension.Day)
+        {
+            _historySelectedDate = ResolveDayHistorySelection(previousDimension, _historySelectedDate, _historyDisplayedMonth);
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
         }
 
         RefreshHistoryCalendar();
@@ -371,8 +385,8 @@ public sealed partial class DashboardViewModel
         HistoryCalendarDays.Clear();
 
         var firstOfMonth = _historyDisplayedMonth;
-        var firstVisible = firstOfMonth.AddDays(-(int)firstOfMonth.DayOfWeek);
-        var selectedWeekStart = _historySelectedDate.AddDays(-(int)_historySelectedDate.DayOfWeek);
+        var firstVisible = GetWeekStart(firstOfMonth);
+        var selectedWeekStart = GetWeekStart(_historySelectedDate);
         var selectedWeekEnd = selectedWeekStart.AddDays(6);
         var monthEnd = _historyDisplayedMonth.AddMonths(1).AddDays(-1);
         var daysWithData = _historyCalendarRecords
@@ -410,8 +424,8 @@ public sealed partial class DashboardViewModel
         {
             HistoryDimension.Week =>
             (
-                selectedDate.AddDays(-(int)selectedDate.DayOfWeek),
-                selectedDate.AddDays(-(int)selectedDate.DayOfWeek).AddDays(6)
+                GetWeekStart(selectedDate),
+                GetWeekStart(selectedDate).AddDays(6)
             ),
             HistoryDimension.Month =>
             (
@@ -460,12 +474,25 @@ public sealed partial class DashboardViewModel
 
     private void RefreshHistoryTopApplications(IReadOnlyList<HistoryApplicationAggregate> applicationRecords)
     {
+        var trafficRecords = applicationRecords
+            .OrderByDescending(static record => record.TotalTrafficBytes)
+            .ThenByDescending(static record => record.ForegroundMilliseconds)
+            .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var ioRecords = applicationRecords
+            .OrderByDescending(static record => record.TotalIoBytes)
+            .ThenByDescending(static record => record.ForegroundMilliseconds)
+            .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var foregroundRecords = applicationRecords
+            .OrderByDescending(static record => record.ForegroundMilliseconds)
+            .ThenByDescending(static record => record.TotalUsageMilliseconds)
+            .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         UpdateHistoryRankingCollection(
             HistoryTrafficTopApplications,
-            applicationRecords
-                .OrderByDescending(static record => record.TotalTrafficBytes)
-                .ThenByDescending(static record => record.ForegroundMilliseconds)
-                .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            trafficRecords
                 .Take(_historyTopN)
                 .Select((record, index) => CreateHistoryRankingItem(index + 1, record, FormatBytes(record.TotalTrafficBytes)))
                 .ToList(),
@@ -473,10 +500,7 @@ public sealed partial class DashboardViewModel
 
         UpdateHistoryRankingCollection(
             HistoryIoTopApplications,
-            applicationRecords
-                .OrderByDescending(static record => record.TotalIoBytes)
-                .ThenByDescending(static record => record.ForegroundMilliseconds)
-                .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            ioRecords
                 .Take(_historyTopN)
                 .Select((record, index) => CreateHistoryRankingItem(index + 1, record, FormatBytes(record.TotalIoBytes)))
                 .ToList(),
@@ -484,14 +508,24 @@ public sealed partial class DashboardViewModel
 
         UpdateHistoryRankingCollection(
             HistoryForegroundTopApplications,
-            applicationRecords
-                .OrderByDescending(static record => record.ForegroundMilliseconds)
-                .ThenByDescending(static record => record.TotalUsageMilliseconds)
-                .ThenBy(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase)
+            foregroundRecords
                 .Take(_historyTopN)
                 .Select((record, index) => CreateHistoryRankingItem(index + 1, record, FormatDuration(record.ForegroundMilliseconds)))
                 .ToList(),
             "暂无前台时长数据");
+
+        _historyTrafficPieChartSource = BuildHistoryPieChartImage(
+            trafficRecords,
+            static record => record.TotalTrafficBytes,
+            static record => FormatBytes(record.TotalTrafficBytes));
+        _historyIoPieChartSource = BuildHistoryPieChartImage(
+            ioRecords,
+            static record => record.TotalIoBytes,
+            static record => FormatBytes(record.TotalIoBytes));
+        _historyForegroundPieChartSource = BuildHistoryPieChartImage(
+            foregroundRecords,
+            static record => record.ForegroundMilliseconds,
+            static record => FormatDuration(record.ForegroundMilliseconds));
     }
 
     private HistoryRankingItemViewModel CreateHistoryRankingItem(int rank, HistoryApplicationAggregate record, string metricDisplay)
@@ -582,7 +616,7 @@ public sealed partial class DashboardViewModel
 
     private static IReadOnlyList<HistoryDailyRecord> SelectWeekRecords(IReadOnlyList<HistoryDailyRecord> dailyRecords, DateOnly selectedDate)
     {
-        var weekStart = selectedDate.AddDays(-(int)selectedDate.DayOfWeek);
+        var weekStart = GetWeekStart(selectedDate);
         var weekEnd = weekStart.AddDays(6);
         return dailyRecords.Where(record => record.Day >= weekStart && record.Day <= weekEnd).OrderBy(record => record.Day).ToList();
     }
@@ -604,7 +638,7 @@ public sealed partial class DashboardViewModel
             return HistoryResourceSummary.Empty;
         }
 
-        var weekStart = selectedDate.AddDays(-(int)selectedDate.DayOfWeek);
+        var weekStart = GetWeekStart(selectedDate);
         var caption = dimension switch
         {
             HistoryDimension.Week => $"所选周：{weekStart:yyyy-MM-dd} 起",
@@ -647,6 +681,36 @@ public sealed partial class DashboardViewModel
             systemPeakIoWriteBytes);
     }
 
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var offset = ((int)date.DayOfWeek + 6) % 7;
+        return date.AddDays(-offset);
+    }
+
+    private DateOnly ResolveDayHistorySelection(HistoryDimension previousDimension, DateOnly selectedDate, DateOnly displayedMonth)
+    {
+        var rangeStart = previousDimension switch
+        {
+            HistoryDimension.Week => GetWeekStart(selectedDate),
+            HistoryDimension.Month => displayedMonth,
+            _ => selectedDate
+        };
+        var rangeEnd = previousDimension switch
+        {
+            HistoryDimension.Week => GetWeekStart(selectedDate).AddDays(6),
+            HistoryDimension.Month => displayedMonth.AddMonths(1).AddDays(-1),
+            _ => selectedDate
+        };
+
+        var earliestDateWithData = _historyCalendarRecords
+            .Select(static record => record.Day)
+            .Where(day => day >= rangeStart && day <= rangeEnd)
+            .OrderBy(static day => day)
+            .FirstOrDefault();
+
+        return earliestDateWithData != default ? earliestDateWithData : rangeStart;
+    }
+
     private string BuildHistoryNetworkDisplay(long downloadBytes, long uploadBytes, long peakDownloadBytes, long peakUploadBytes)
     {
         return _historyNetworkDisplayMode == HistoryNetworkDisplayMode.Split
@@ -659,6 +723,201 @@ public sealed partial class DashboardViewModel
         return _historyIoDisplayMode == HistoryIoDisplayMode.Split
             ? $"读取 {FormatBytes(readBytes)}\n写入 {FormatBytes(writeBytes)}"
             : $"总量 {FormatBytes(readBytes + writeBytes)}";
+    }
+
+    private ImageSource BuildHistoryPieChartImage(
+        IReadOnlyList<HistoryApplicationAggregate> orderedRecords,
+        Func<HistoryApplicationAggregate, long> valueSelector,
+        Func<HistoryApplicationAggregate, string> valueFormatter)
+    {
+        const int width = 436;
+        const int height = 332;
+        const double dpi = 96d;
+        var bitmap = new RenderTargetBitmap(width, height, dpi, dpi, PixelFormats.Pbgra32);
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            context.DrawRoundedRectangle(new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFC, 0xF8, 0xF1)), null, new System.Windows.Rect(0, 0, width, height), 20, 20);
+
+            var positiveRecords = orderedRecords
+                .Select(record => new { Record = record, Value = Math.Max(0L, valueSelector(record)) })
+                .Where(item => item.Value > 0)
+                .ToList();
+
+            if (positiveRecords.Count == 0)
+            {
+                DrawHistoryPieEmptyState(context, width, height);
+            }
+            else
+            {
+                var topItems = positiveRecords.Take(_historyTopN).ToList();
+                var otherValue = positiveRecords.Skip(_historyTopN).Sum(static item => item.Value);
+                var slices = topItems
+                    .Select((item, index) => new HistoryPieSlice(
+                        BuildHistoryApplicationDisplayName(item.Record.ProcessName, item.Record.ExecutablePath),
+                        item.Value,
+                        valueFormatter(item.Record),
+                        GetHistoryPieBrush(index)))
+                    .ToList();
+
+                if (otherValue > 0)
+                {
+                    slices.Add(new HistoryPieSlice("其他", otherValue, FormatCompactMetric(otherValue), new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD5, 0xDB, 0xD4))));
+                }
+
+                var total = slices.Sum(static item => item.Value);
+                var center = new System.Windows.Point(130, 150);
+                const double radius = 116;
+                const double innerRadius = 60;
+                var startAngle = -90d;
+
+                foreach (var slice in slices)
+                {
+                    var sweepAngle = slice.Value / total * 360d;
+                    context.DrawGeometry(slice.Brush, null, CreateDonutSliceGeometry(center, radius, innerRadius, startAngle, sweepAngle));
+                    startAngle += sweepAngle;
+                }
+
+                context.DrawEllipse(new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xFD, 0xF9)), null, center, innerRadius - 1, innerRadius - 1);
+                DrawHistoryPieText(context, "Top", 130, 130, 12, System.Windows.FontWeights.SemiBold, BrushFromRgb(0x7A, 0x82, 0x77), System.Windows.TextAlignment.Center);
+                DrawHistoryPieText(context, _historyTopN.ToString(CultureInfo.InvariantCulture), 130, 145, 22, System.Windows.FontWeights.Bold, BrushFromRgb(0x21, 0x3B, 0x35), System.Windows.TextAlignment.Center);
+
+                var legendCount = slices.Count;
+                var legendStartTop = legendCount >= 10 ? 18d : 26d;
+                var legendStep = legendCount >= 10 ? 28d : 30d;
+
+                for (var i = 0; i < slices.Count; i++)
+                {
+                    var slice = slices[i];
+                    var top = legendStartTop + (i * legendStep);
+                    context.DrawRoundedRectangle(slice.Brush, null, new System.Windows.Rect(284, top, 12, 12), 3, 3);
+                    var percentage = total == 0 ? 0d : slice.Value / total;
+                    DrawHistoryPieText(context, TrimDisplayName(slice.Label, 11), 304, top - 3, 12, System.Windows.FontWeights.SemiBold, BrushFromRgb(0x21, 0x3B, 0x35), System.Windows.TextAlignment.Left);
+                    DrawHistoryPieText(context, $"{percentage:P0} · {slice.MetricDisplay}", 304, top + 13, 11, System.Windows.FontWeights.Normal, BrushFromRgb(0x6E, 0x76, 0x6D), System.Windows.TextAlignment.Left);
+                }
+            }
+        }
+
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static void DrawHistoryPieEmptyState(DrawingContext context, int width, int height)
+    {
+        context.DrawEllipse(new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEE, 0xE8, 0xDC)), null, new System.Windows.Point(130, 150), 116, 116);
+        context.DrawEllipse(new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFC, 0xF8, 0xF1)), null, new System.Windows.Point(130, 150), 60, 60);
+        DrawHistoryPieText(context, "暂无数据", width / 2d, height / 2d - 10, 16, System.Windows.FontWeights.SemiBold, BrushFromRgb(0x6E, 0x76, 0x6D), System.Windows.TextAlignment.Center);
+        DrawHistoryPieText(context, "当前区间没有可用占比", width / 2d, height / 2d + 14, 12, System.Windows.FontWeights.Normal, BrushFromRgb(0x94, 0x9A, 0x91), System.Windows.TextAlignment.Center);
+    }
+
+    private static Geometry CreateDonutSliceGeometry(System.Windows.Point center, double outerRadius, double innerRadius, double startAngle, double sweepAngle)
+    {
+        if (sweepAngle >= 359.99d)
+        {
+            var geometryGroup = new GeometryGroup { FillRule = FillRule.EvenOdd };
+            geometryGroup.Children.Add(new EllipseGeometry(center, outerRadius, outerRadius));
+            geometryGroup.Children.Add(new EllipseGeometry(center, innerRadius, innerRadius));
+            return geometryGroup;
+        }
+
+        var startOuter = PointOnCircle(center, outerRadius, startAngle);
+        var endOuter = PointOnCircle(center, outerRadius, startAngle + sweepAngle);
+        var startInner = PointOnCircle(center, innerRadius, startAngle);
+        var endInner = PointOnCircle(center, innerRadius, startAngle + sweepAngle);
+        var isLargeArc = sweepAngle > 180d;
+
+        var figure = new PathFigure { StartPoint = startOuter, IsClosed = true, IsFilled = true };
+        figure.Segments.Add(new ArcSegment(endOuter, new System.Windows.Size(outerRadius, outerRadius), 0, isLargeArc, SweepDirection.Clockwise, true));
+        figure.Segments.Add(new LineSegment(endInner, true));
+        figure.Segments.Add(new ArcSegment(startInner, new System.Windows.Size(innerRadius, innerRadius), 0, isLargeArc, SweepDirection.Counterclockwise, true));
+
+        return new PathGeometry([figure]);
+    }
+
+    private static System.Windows.Point PointOnCircle(System.Windows.Point center, double radius, double angleDegrees)
+    {
+        var angleRadians = angleDegrees * Math.PI / 180d;
+        return new System.Windows.Point(
+            center.X + radius * Math.Cos(angleRadians),
+            center.Y + radius * Math.Sin(angleRadians));
+    }
+
+    private static System.Windows.Media.Brush GetHistoryPieBrush(int index)
+    {
+        return index switch
+        {
+            0 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2D, 0x5E, 0x46)),
+            1 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x8A, 0x3D)),
+            2 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5D, 0x83, 0xA7)),
+            3 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xA6, 0x68, 0x4B)),
+            4 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7D, 0x90, 0x80)),
+            5 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8C, 0x6B, 0xB0)),
+            6 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x4E, 0x8B, 0x8B)),
+            7 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC0, 0x5A, 0x6D)),
+            8 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0x7A, 0x39)),
+            9 => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5B, 0x6F, 0xD6)),
+            _ => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x6D, 0x7B, 0x75))
+        };
+    }
+
+    private static System.Windows.Media.Brush BrushFromRgb(byte r, byte g, byte b) => new SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+
+    private static void DrawHistoryPieText(
+        DrawingContext context,
+        string text,
+        double x,
+        double y,
+        double fontSize,
+        System.Windows.FontWeight fontWeight,
+        System.Windows.Media.Brush brush,
+        System.Windows.TextAlignment alignment)
+    {
+        var formattedText = new FormattedText(
+            text,
+            CultureInfo.CurrentCulture,
+            System.Windows.FlowDirection.LeftToRight,
+            new Typeface(new System.Windows.Media.FontFamily("Microsoft YaHei"), System.Windows.FontStyles.Normal, fontWeight, System.Windows.FontStretches.Normal),
+            fontSize,
+            brush,
+            1.25)
+        {
+            TextAlignment = alignment
+        };
+
+        context.DrawText(formattedText, new System.Windows.Point(x, y));
+    }
+
+    private static string TrimDisplayName(string value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return $"{value[..(maxLength - 1)]}…";
+    }
+
+    private static string FormatCompactMetric(long value)
+    {
+        const long mega = 1024L * 1024L;
+        const long giga = mega * 1024L;
+        if (value >= giga)
+        {
+            return $"{value / (double)giga:0.#} GB";
+        }
+
+        if (value >= mega)
+        {
+            return $"{value / (double)mega:0.#} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.#} KB";
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture);
     }
 
     private static string FormatDuration(long milliseconds)
@@ -705,6 +964,9 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(HistoryApplicationIoDisplay));
         RaisePropertyChanged(nameof(HistorySystemNetworkDisplay));
         RaisePropertyChanged(nameof(HistorySystemIoDisplay));
+        RaisePropertyChanged(nameof(HistoryTrafficPieChartSource));
+        RaisePropertyChanged(nameof(HistoryIoPieChartSource));
+        RaisePropertyChanged(nameof(HistoryForegroundPieChartSource));
     }
 
     private void RaiseHistoryRankingChanged()
@@ -713,8 +975,13 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(HistoryTrafficTopTitle));
         RaisePropertyChanged(nameof(HistoryIoTopTitle));
         RaisePropertyChanged(nameof(HistoryForegroundTopTitle));
+        RaisePropertyChanged(nameof(HistoryTrafficPieChartSource));
+        RaisePropertyChanged(nameof(HistoryIoPieChartSource));
+        RaisePropertyChanged(nameof(HistoryForegroundPieChartSource));
     }
 }
+
+internal readonly record struct HistoryPieSlice(string Label, double Value, string MetricDisplay, System.Windows.Media.Brush Brush);
 
 public sealed class HistoryCalendarDayViewModel
 {
