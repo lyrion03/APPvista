@@ -41,17 +41,7 @@ public sealed class SystemOverviewProvider
                 TryReadCounterRawValue(_diskWriteBytesCounter, out var currentIoWriteTotal))
             {
                 var ioBaseline = LoadOrCreateIoBaseline(_currentDay, currentIoReadTotal, currentIoWriteTotal);
-                _ioReadBaseline = ioBaseline.ReadBaseline;
-                _ioWriteBaseline = ioBaseline.WriteBaseline;
-                if (currentIoReadTotal >= ioBaseline.LastTotalReadBytes)
-                {
-                    _ioReadBaseline += currentIoReadTotal - ioBaseline.LastTotalReadBytes;
-                }
-
-                if (currentIoWriteTotal >= ioBaseline.LastTotalWriteBytes)
-                {
-                    _ioWriteBaseline += currentIoWriteTotal - ioBaseline.LastTotalWriteBytes;
-                }
+                (_ioReadBaseline, _ioWriteBaseline) = ResolveIoBaselines(ioBaseline, currentIoReadTotal, currentIoWriteTotal);
 
                 _todayIoReadBytes = Math.Max(0, currentIoReadTotal - _ioReadBaseline);
                 _todayIoWriteBytes = Math.Max(0, currentIoWriteTotal - _ioWriteBaseline);
@@ -131,29 +121,7 @@ public sealed class SystemOverviewProvider
             if (hasIoRawTotals)
             {
                 var ioBaseline = LoadOrCreateIoBaseline(today, currentIoReadTotal, currentIoWriteTotal);
-                _ioReadBaseline = ioBaseline.ReadBaseline;
-                _ioWriteBaseline = ioBaseline.WriteBaseline;
-                if (currentIoReadTotal < ioBaseline.LastTotalReadBytes)
-                {
-                    var previousTodayIoReadBytes = Math.Max(0, ioBaseline.LastTotalReadBytes - ioBaseline.ReadBaseline);
-                    _ioReadBaseline = previousTodayIoReadBytes > 0 ? -previousTodayIoReadBytes : 0;
-                }
-
-                if (currentIoWriteTotal < ioBaseline.LastTotalWriteBytes)
-                {
-                    var previousTodayIoWriteBytes = Math.Max(0, ioBaseline.LastTotalWriteBytes - ioBaseline.WriteBaseline);
-                    _ioWriteBaseline = previousTodayIoWriteBytes > 0 ? -previousTodayIoWriteBytes : 0;
-                }
-
-                if (currentIoReadTotal < _ioReadBaseline)
-                {
-                    _ioReadBaseline = 0;
-                }
-
-                if (currentIoWriteTotal < _ioWriteBaseline)
-                {
-                    _ioWriteBaseline = 0;
-                }
+                (_ioReadBaseline, _ioWriteBaseline) = ResolveIoBaselines(ioBaseline, currentIoReadTotal, currentIoWriteTotal);
 
                 _todayIoReadBytes = Math.Max(0, currentIoReadTotal - _ioReadBaseline);
                 _todayIoWriteBytes = Math.Max(0, currentIoWriteTotal - _ioWriteBaseline);
@@ -454,6 +422,39 @@ ON CONFLICT(day) DO UPDATE SET
         command.Parameters.AddWithValue("$lastTotalReadBytes", currentReadTotal);
         command.Parameters.AddWithValue("$lastTotalWriteBytes", currentWriteTotal);
         command.ExecuteNonQuery();
+    }
+
+    private static (long ReadBaseline, long WriteBaseline) ResolveIoBaselines(
+        (long ReadBaseline, long WriteBaseline, long LastTotalReadBytes, long LastTotalWriteBytes) persistedBaseline,
+        long currentReadTotal,
+        long currentWriteTotal)
+    {
+        var readBaseline = persistedBaseline.ReadBaseline;
+        var writeBaseline = persistedBaseline.WriteBaseline;
+
+        if (currentReadTotal < persistedBaseline.LastTotalReadBytes)
+        {
+            var previousTodayIoReadBytes = Math.Max(0, persistedBaseline.LastTotalReadBytes - persistedBaseline.ReadBaseline);
+            readBaseline = previousTodayIoReadBytes > 0 ? -previousTodayIoReadBytes : 0;
+        }
+
+        if (currentWriteTotal < persistedBaseline.LastTotalWriteBytes)
+        {
+            var previousTodayIoWriteBytes = Math.Max(0, persistedBaseline.LastTotalWriteBytes - persistedBaseline.WriteBaseline);
+            writeBaseline = previousTodayIoWriteBytes > 0 ? -previousTodayIoWriteBytes : 0;
+        }
+
+        if (currentReadTotal < readBaseline)
+        {
+            readBaseline = 0;
+        }
+
+        if (currentWriteTotal < writeBaseline)
+        {
+            writeBaseline = 0;
+        }
+
+        return (readBaseline, writeBaseline);
     }
 
     private SqliteConnection OpenConnection()

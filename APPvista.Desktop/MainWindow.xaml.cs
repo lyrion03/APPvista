@@ -22,6 +22,8 @@ public partial class MainWindow : Window
         DataContextChanged += OnDataContextChanged;
         Activated += OnActivated;
         Deactivated += OnDeactivated;
+        StateChanged += OnStateChanged;
+        IsVisibleChanged += OnIsVisibleChanged;
         Closing += OnClosing;
     }
 
@@ -32,6 +34,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StateChanged -= OnStateChanged;
+        IsVisibleChanged -= OnIsVisibleChanged;
         Closing -= OnClosing;
         ReleaseHistoryPage();
 
@@ -53,7 +57,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is ViewModels.DashboardViewModel viewModel)
         {
-            viewModel.SetMainWindowRenderingActive(IsActive);
+            viewModel.SetMainWindowRenderingActive(ShouldRenderWindow());
             UpdateApplicationCardViewportWidth();
             Dispatcher.BeginInvoke(
                 viewModel.StartBackgroundInitialization,
@@ -87,7 +91,7 @@ public partial class MainWindow : Window
 
         if (e.NewValue is ViewModels.DashboardViewModel viewModel)
         {
-            viewModel.SetMainWindowRenderingActive(IsActive);
+            viewModel.SetMainWindowRenderingActive(ShouldRenderWindow());
             UpdateApplicationCardViewportWidth();
         }
 
@@ -110,18 +114,22 @@ public partial class MainWindow : Window
 
     private void OnActivated(object? sender, EventArgs e)
     {
-        if (DataContext is ViewModels.DashboardViewModel viewModel)
-        {
-            viewModel.SetMainWindowRenderingActive(true);
-        }
+        UpdateRenderingActiveState();
     }
 
     private void OnDeactivated(object? sender, EventArgs e)
     {
-        if (DataContext is ViewModels.DashboardViewModel viewModel)
-        {
-            viewModel.SetMainWindowRenderingActive(false);
-        }
+        UpdateRenderingActiveState();
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        UpdateRenderingActiveState();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        UpdateRenderingActiveState();
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
@@ -439,4 +447,14 @@ public partial class MainWindow : Window
         HistoryPageHost.Content = null;
         _isHistoryPageLoaded = false;
     }
+
+    private void UpdateRenderingActiveState()
+    {
+        if (DataContext is ViewModels.DashboardViewModel viewModel)
+        {
+            viewModel.SetMainWindowRenderingActive(ShouldRenderWindow());
+        }
+    }
+
+    private bool ShouldRenderWindow() => IsVisible && WindowState != WindowState.Minimized;
 }

@@ -42,6 +42,8 @@ public partial class ApplicationDetailWindow : Window
         DataContextChanged += OnDataContextChanged;
         Activated += OnActivated;
         Deactivated += OnDeactivated;
+        StateChanged += OnStateChanged;
+        IsVisibleChanged += OnIsVisibleChanged;
         SourceInitialized += OnSourceInitialized;
     }
 
@@ -63,6 +65,8 @@ public partial class ApplicationDetailWindow : Window
         DataContextChanged -= OnDataContextChanged;
         Activated -= OnActivated;
         Deactivated -= OnDeactivated;
+        StateChanged -= OnStateChanged;
+        IsVisibleChanged -= OnIsVisibleChanged;
         SourceInitialized -= OnSourceInitialized;
 
         if (DataContext is IDisposable disposable)
@@ -81,7 +85,7 @@ public partial class ApplicationDetailWindow : Window
         AttachViewModel(DataContext);
         if (DataContext is ApplicationDetailViewModel viewModel)
         {
-            viewModel.SetWindowRenderingActive(IsActive);
+            viewModel.SetWindowRenderingActive(ShouldRenderWindow());
             UpdateHistoryChartViewportWidth();
         }
 
@@ -114,7 +118,7 @@ public partial class ApplicationDetailWindow : Window
         AttachViewModel(e.NewValue);
         if (e.NewValue is ApplicationDetailViewModel viewModel)
         {
-            viewModel.SetWindowRenderingActive(IsActive);
+            viewModel.SetWindowRenderingActive(ShouldRenderWindow());
             UpdateHistoryChartViewportWidth();
         }
 
@@ -124,18 +128,22 @@ public partial class ApplicationDetailWindow : Window
 
     private void OnActivated(object? sender, EventArgs e)
     {
-        if (DataContext is ApplicationDetailViewModel viewModel)
-        {
-            viewModel.SetWindowRenderingActive(true);
-        }
+        UpdateRenderingActiveState();
     }
 
     private void OnDeactivated(object? sender, EventArgs e)
     {
-        if (DataContext is ApplicationDetailViewModel viewModel)
-        {
-            viewModel.SetWindowRenderingActive(false);
-        }
+        UpdateRenderingActiveState();
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        UpdateRenderingActiveState();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        UpdateRenderingActiveState();
     }
 
     private void AttachViewModel(object? dataContext)
@@ -408,4 +416,14 @@ public partial class ApplicationDetailWindow : Window
         Left = area.Left + Math.Max(WindowMargin, (area.Width - Width) / 2d);
         Top = area.Top + Math.Max(WindowMargin, (area.Height - Height) / 2d);
     }
+
+    private void UpdateRenderingActiveState()
+    {
+        if (DataContext is ApplicationDetailViewModel viewModel)
+        {
+            viewModel.SetWindowRenderingActive(ShouldRenderWindow());
+        }
+    }
+
+    private bool ShouldRenderWindow() => IsVisible && WindowState != WindowState.Minimized;
 }

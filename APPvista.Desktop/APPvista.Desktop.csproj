@@ -9,6 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\icon256.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1510</NoWarn>
   </PropertyGroup>

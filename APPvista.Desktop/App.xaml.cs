@@ -15,7 +15,7 @@ public partial class App : System.Windows.Application
 {
     private const string ApplicationDisplayName = "APPvista";
     private const string AutoStartAppName = "APPvista";
-    private const string AppDataFolderName = "APPvista.Desktop";
+    private const string TrayLaunchArgument = "--tray";
     private string? _dataDirectory;
     private string? _databasePath;
     private IProcessSnapshotProvider? _processSnapshotProvider;
@@ -43,9 +43,10 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var startInTrayOnly = e.Args.Any(static arg => string.Equals(arg, TrayLaunchArgument, StringComparison.OrdinalIgnoreCase));
 
         var startupTimestamp = Stopwatch.GetTimestamp();
-        var dataDirectory = ResolveDataDirectory(out var legacyDataDirectory);
+        var dataDirectory = ResolveDataDirectory();
         StartupPerformanceTrace.Initialize(dataDirectory);
         StartupPerformanceTrace.Mark("App.OnStartup entered");
         _dataDirectory = dataDirectory;
@@ -124,17 +125,25 @@ public partial class App : System.Windows.Application
                 isWindowedOnlyRecording));
         StartupPerformanceTrace.MarkDuration("LiveMonitoringDashboardService created", dashboardServiceStarted);
 
-        var windowStarted = Stopwatch.GetTimestamp();
-        ShowMainWindowFromTray();
-        StartupPerformanceTrace.MarkDuration("MainWindow created", windowStarted);
-        StartupPerformanceTrace.Mark("MainWindow shown");
         Dispatcher.BeginInvoke(new Action(() =>
         {
             var trayStarted = Stopwatch.GetTimestamp();
             InitializeTrayIcon();
             StartupPerformanceTrace.MarkDuration("Tray icon initialized", trayStarted);
         }), DispatcherPriority.Background);
-        _ = Task.Run(() => TryMigrateLegacyData(legacyDataDirectory, dataDirectory));
+
+        if (startInTrayOnly)
+        {
+            StartupPerformanceTrace.Mark("MainWindow deferred for tray launch");
+        }
+        else
+        {
+            var windowStarted = Stopwatch.GetTimestamp();
+            ShowMainWindowFromTray();
+            StartupPerformanceTrace.MarkDuration("MainWindow created", windowStarted);
+            StartupPerformanceTrace.Mark("MainWindow shown");
+        }
+
         StartupPerformanceTrace.MarkDuration("App.OnStartup completed", startupTimestamp);
     }
 
@@ -305,71 +314,10 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private static string ResolveDataDirectory(out string legacyDataDirectory)
+    private static string ResolveDataDirectory()
     {
-        var appDataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            AppDataFolderName);
-        Directory.CreateDirectory(appDataDirectory);
-
-        legacyDataDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data"));
-
-        return appDataDirectory;
-    }
-
-    private static void TryMigrateLegacyData(string legacyDataDirectory, string appDataDirectory)
-    {
-        var started = Stopwatch.GetTimestamp();
-        if (string.Equals(legacyDataDirectory, appDataDirectory, StringComparison.OrdinalIgnoreCase) ||
-            !Directory.Exists(legacyDataDirectory))
-        {
-            StartupPerformanceTrace.MarkDuration("Legacy data migration skipped", started);
-            return;
-        }
-
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "monitoring.db");
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "process-whitelist.json");
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "application-aliases.json");
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "application-card-metrics.json");
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "windowed-only-recording.json");
-        CopyFileIfMissing(legacyDataDirectory, appDataDirectory, "auto-start.json");
-        CopyDirectoryIfMissing(
-            Path.Combine(legacyDataDirectory, "icon-cache"),
-            Path.Combine(appDataDirectory, "icon-cache"));
-        StartupPerformanceTrace.MarkDuration("Legacy data migration finished", started);
-    }
-
-    private static void CopyFileIfMissing(string sourceDirectory, string targetDirectory, string fileName)
-    {
-        var sourcePath = Path.Combine(sourceDirectory, fileName);
-        var targetPath = Path.Combine(targetDirectory, fileName);
-        if (!File.Exists(sourcePath) || File.Exists(targetPath))
-        {
-            return;
-        }
-
-        File.Copy(sourcePath, targetPath, overwrite: false);
-    }
-
-    private static void CopyDirectoryIfMissing(string sourceDirectory, string targetDirectory)
-    {
-        if (!Directory.Exists(sourceDirectory) || Directory.Exists(targetDirectory))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(targetDirectory);
-        foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-            var targetFile = Path.Combine(targetDirectory, relativePath);
-            var targetFileDirectory = Path.GetDirectoryName(targetFile);
-            if (!string.IsNullOrWhiteSpace(targetFileDirectory))
-            {
-                Directory.CreateDirectory(targetFileDirectory);
-            }
-
-            File.Copy(sourceFile, targetFile, overwrite: false);
-        }
+        var dataDirectory = Path.Combine(AppContext.BaseDirectory, "data");
+        Directory.CreateDirectory(dataDirectory);
+        return dataDirectory;
     }
 }
