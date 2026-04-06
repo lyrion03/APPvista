@@ -102,6 +102,42 @@ ORDER BY foreground_milliseconds DESC, background_milliseconds DESC, process_nam
         }
     }
 
+    public void Delete(DateOnly day, IEnumerable<string> processNames)
+    {
+        lock (_sync)
+        {
+            var normalizedDay = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var items = processNames
+                .Where(static item => !string.IsNullOrWhiteSpace(item))
+                .Select(static item => item.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (items.Count == 0)
+            {
+                return;
+            }
+
+            using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
+            using var transaction = connection.BeginTransaction();
+
+            foreach (var processName in items)
+            {
+                using var deleteCommand = connection.CreateCommand();
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = @"
+DELETE FROM daily_process_activity
+WHERE day = $day
+  AND process_name = $processName;";
+                deleteCommand.Parameters.AddWithValue("$day", normalizedDay);
+                deleteCommand.Parameters.AddWithValue("$processName", processName);
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+    }
+
     public void Save(DateOnly day, IEnumerable<DailyProcessActivitySummary> summaries)
     {
         lock (_sync)
@@ -115,14 +151,6 @@ ORDER BY foreground_milliseconds DESC, background_milliseconds DESC, process_nam
 
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
             using var transaction = connection.BeginTransaction();
-
-            using (var deleteCommand = connection.CreateCommand())
-            {
-                deleteCommand.Transaction = transaction;
-                deleteCommand.CommandText = "DELETE FROM daily_process_activity WHERE day = $day;";
-                deleteCommand.Parameters.AddWithValue("$day", normalizedDay);
-                deleteCommand.ExecuteNonQuery();
-            }
 
             foreach (var summary in items)
             {

@@ -26,6 +26,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
     private DateTime? _lastPersistTimeUtc;
     private bool _hasDirtySummaries;
     private bool _isFirstCapture = true;
+    private HashSet<string> _removedSummaryNames = new(StringComparer.OrdinalIgnoreCase);
 
     public LiveMonitoringDashboardService(
         IProcessSnapshotProvider processSnapshotProvider,
@@ -219,6 +220,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         _lastLiveSnapshots = new Dictionary<string, ProcessResourceSnapshot>(StringComparer.OrdinalIgnoreCase);
         _consecutiveMissCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         _lastSeenLiveTimesUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        _removedSummaryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _dailySummaries = _dailyProcessActivityStore
             .Load(today)
             .ToDictionary(item => item.ProcessName, StringComparer.OrdinalIgnoreCase);
@@ -611,6 +613,12 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             return;
         }
 
+        if (_removedSummaryNames.Count > 0)
+        {
+            _dailyProcessActivityStore.Delete(_currentDay, _removedSummaryNames);
+            _removedSummaryNames.Clear();
+        }
+
         _dailyProcessActivityStore.Save(_currentDay, _dailySummaries.Values.OrderBy(item => item.ProcessName).ToList());
         _hasDirtySummaries = false;
     }
@@ -645,6 +653,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             _lastLiveSnapshots.Remove(processName);
             _consecutiveMissCounts.Remove(processName);
             _lastSeenLiveTimesUtc.Remove(processName);
+            _removedSummaryNames.Add(processName);
         }
 
         PersistCurrentDay(force: true);

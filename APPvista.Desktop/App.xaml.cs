@@ -34,6 +34,8 @@ public partial class App : System.Windows.Application
     private Forms.ToolStripMenuItem? _autoStartMenuItem;
     private AutoStartPreferenceStore? _autoStartPreferenceStore;
     private AutoStartRegistrationService? _autoStartRegistrationService;
+    private DispatcherTimer? _backgroundSnapshotTimer;
+    private bool _isBackgroundSnapshotRefreshing;
     private bool _isExitRequested;
     private bool _isAutoStartEnabled;
 
@@ -125,6 +127,8 @@ public partial class App : System.Windows.Application
                 isWindowedOnlyRecording));
         StartupPerformanceTrace.MarkDuration("LiveMonitoringDashboardService created", dashboardServiceStarted);
 
+        InitializeBackgroundSnapshotTimer();
+
         Dispatcher.BeginInvoke(new Action(() =>
         {
             var trayStarted = Stopwatch.GetTimestamp();
@@ -174,6 +178,13 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_backgroundSnapshotTimer is not null)
+        {
+            _backgroundSnapshotTimer.Stop();
+            _backgroundSnapshotTimer.Tick -= OnBackgroundSnapshotTimerTick;
+            _backgroundSnapshotTimer = null;
+        }
+
         DisposeTrayIcon();
 
         if (_dashboardService is IDisposable disposableDashboardService)
@@ -312,6 +323,53 @@ public partial class App : System.Windows.Application
         {
             _autoStartMenuItem.Checked = _isAutoStartEnabled;
         }
+    }
+
+    private void InitializeBackgroundSnapshotTimer()
+    {
+        if (_backgroundSnapshotTimer is not null)
+        {
+            return;
+        }
+
+        _backgroundSnapshotTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        _backgroundSnapshotTimer.Tick += OnBackgroundSnapshotTimerTick;
+        _backgroundSnapshotTimer.Start();
+    }
+
+    private async void OnBackgroundSnapshotTimerTick(object? sender, EventArgs e)
+    {
+        if (_isExitRequested || _dashboardService is null || _isBackgroundSnapshotRefreshing || ShouldDeferBackgroundSnapshot())
+        {
+            return;
+        }
+
+        _isBackgroundSnapshotRefreshing = true;
+        try
+        {
+            await Task.Run(() => _dashboardService.GetSnapshot());
+        }
+        catch
+        {
+            // Keep background sampling resilient in tray mode.
+        }
+        finally
+        {
+            _isBackgroundSnapshotRefreshing = false;
+        }
+    }
+
+    private bool ShouldDeferBackgroundSnapshot()
+    {
+        if (MainWindow is not Window window)
+        {
+            return false;
+        }
+
+        return window.IsVisible && window.WindowState != WindowState.Minimized;
     }
 
     private static string ResolveDataDirectory()
