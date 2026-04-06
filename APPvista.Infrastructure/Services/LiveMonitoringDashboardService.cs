@@ -25,6 +25,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
     private DateTime? _lastBandwidthWindowUtc;
     private DateTime? _lastPersistTimeUtc;
     private bool _hasDirtySummaries;
+    private HashSet<string> _dirtySummaryNames = new(StringComparer.OrdinalIgnoreCase);
     private bool _isFirstCapture = true;
     private HashSet<string> _removedSummaryNames = new(StringComparer.OrdinalIgnoreCase);
 
@@ -210,12 +211,13 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             return;
         }
 
-        PersistCurrentDay(force: true);
+        PersistCurrentDay(fullSync: true);
         _currentDay = today;
         _lastSampleTimeUtc = null;
         _lastBandwidthWindowUtc = null;
         _lastPersistTimeUtc = null;
         _hasDirtySummaries = false;
+        _dirtySummaryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _pendingBandwidthByProcess = new Dictionary<string, (long DownloadBytes, long UploadBytes)>(StringComparer.OrdinalIgnoreCase);
         _lastLiveSnapshots = new Dictionary<string, ProcessResourceSnapshot>(StringComparer.OrdinalIgnoreCase);
         _consecutiveMissCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -271,7 +273,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 ? (pending.DownloadBytes + usageEvent.Bytes, pending.UploadBytes)
                 : (pending.DownloadBytes, pending.UploadBytes + usageEvent.Bytes);
 
-            MarkDirty();
+            MarkDirty(usageEvent.ProcessName);
         }
     }
 
@@ -305,9 +307,15 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             result[pair.Key] = (downloadBytesPerSecond, uploadBytesPerSecond);
 
             var summary = GetOrCreateSummary(_currentDay, pair.Key);
-            summary.PeakDownloadBytesPerSecond = Math.Max(summary.PeakDownloadBytesPerSecond, downloadBytesPerSecond);
-            summary.PeakUploadBytesPerSecond = Math.Max(summary.PeakUploadBytesPerSecond, uploadBytesPerSecond);
-            MarkDirty();
+            var nextPeakDownload = Math.Max(summary.PeakDownloadBytesPerSecond, downloadBytesPerSecond);
+            var nextPeakUpload = Math.Max(summary.PeakUploadBytesPerSecond, uploadBytesPerSecond);
+            if (nextPeakDownload != summary.PeakDownloadBytesPerSecond ||
+                nextPeakUpload != summary.PeakUploadBytesPerSecond)
+            {
+                summary.PeakDownloadBytesPerSecond = nextPeakDownload;
+                summary.PeakUploadBytesPerSecond = nextPeakUpload;
+                MarkDirty(pair.Key);
+            }
         }
 
         return result;
@@ -378,7 +386,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 summary.PeakIoBytesPerSecond = Math.Max(
                     summary.PeakIoBytesPerSecond,
                     process.RealtimeIoReadBytesPerSecond + process.RealtimeIoWriteBytesPerSecond);
-                MarkDirty();
+                MarkDirty(process.ProcessName);
             }
         }
 
@@ -602,13 +610,13 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             return;
         }
 
-        PersistCurrentDay(force: true);
+        PersistCurrentDay(fullSync: false);
         _lastPersistTimeUtc = nowUtc;
     }
 
-    private void PersistCurrentDay(bool force)
+    private void PersistCurrentDay(bool fullSync)
     {
-        if (!force && !_hasDirtySummaries)
+        if (!fullSync && !_hasDirtySummaries)
         {
             return;
         }
@@ -619,12 +627,42 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             _removedSummaryNames.Clear();
         }
 
-        _dailyProcessActivityStore.Save(_currentDay, _dailySummaries.Values.OrderBy(item => item.ProcessName).ToList());
-        _hasDirtySummaries = false;
+        var summariesToSave = fullSync
+            ? _dailySummaries.Values.OrderBy(item => item.ProcessName).ToList()
+            : _dirtySummaryNames
+                .Select(processName => _dailySummaries.TryGetValue(processName, out var summary) ? summary : null)
+                .Where(static summary => summary is not null)
+                .OrderBy(static summary => summary!.ProcessName)
+                .Cast<DailyProcessActivitySummary>()
+                .ToList();
+
+        if (summariesToSave.Count > 0)
+        {
+            _dailyProcessActivityStore.Save(_currentDay, summariesToSave);
+        }
+
+        if (fullSync)
+        {
+            _dirtySummaryNames.Clear();
+        }
+        else
+        {
+            foreach (var summary in summariesToSave)
+            {
+                _dirtySummaryNames.Remove(summary.ProcessName);
+            }
+        }
+
+        _hasDirtySummaries = _dirtySummaryNames.Count > 0 || _removedSummaryNames.Count > 0;
     }
 
-    private void MarkDirty()
+    private void MarkDirty(string processName)
     {
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            _dirtySummaryNames.Add(processName);
+        }
+
         _hasDirtySummaries = true;
     }
 
@@ -656,7 +694,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             _removedSummaryNames.Add(processName);
         }
 
-        PersistCurrentDay(force: true);
+        PersistCurrentDay(fullSync: true);
         _lastPersistTimeUtc = DateTime.UtcNow;
     }
 
@@ -664,7 +702,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
     {
         lock (_sync)
         {
-            PersistCurrentDay(force: true);
+            PersistCurrentDay(fullSync: true);
         }
     }
 

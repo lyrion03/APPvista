@@ -11,9 +11,12 @@ namespace APPvista.Infrastructure.Services;
 public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSource
 {
     private const string SessionNamePrefix = "APPvista-Network";
+    private static readonly TimeSpan RuntimeStatsLogInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan FilteredProcessCacheRetention = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentQueue<ProcessNetworkUsageEvent> _queue = new();
     private readonly Dictionary<int, ProcessIdentity> _processIdentities = new();
+    private readonly Dictionary<int, DateTime> _filteredProcessIds = new();
     private readonly object _sync = new();
     private readonly string _sessionName = SessionNamePrefix;
     private readonly int _interactiveSessionId = Process.GetCurrentProcess().SessionId;
@@ -21,6 +24,18 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
     private TraceEventSession? _session;
     private Task? _processingTask;
     private bool _disposed;
+    private DateTime _lastRuntimeStatsLoggedUtc = DateTime.UtcNow;
+    private long _eventsObserved;
+    private long _eventsEnqueued;
+    private long _bytesObserved;
+    private long _bytesEnqueued;
+    private long _identityCacheHits;
+    private long _identityResolves;
+    private long _identityResolveFailures;
+    private long _identityFiltered;
+    private long _identityFilteredCacheHits;
+    private long _eventsDrained;
+    private long _drains;
 
     public TraceEventProcessNetworkUsageSource()
     {
@@ -38,7 +53,15 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
             items.Add(item);
         }
 
+        if (items.Count > 0)
+        {
+            Interlocked.Add(ref _eventsDrained, items.Count);
+        }
+
+        Interlocked.Increment(ref _drains);
+
         CleanupProcessIdentities(DateTime.UtcNow);
+        LogRuntimeStatsIfDue(DateTime.UtcNow);
         return items;
     }
 
@@ -137,8 +160,12 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
             return;
         }
 
+        Interlocked.Increment(ref _eventsObserved);
+        Interlocked.Add(ref _bytesObserved, bytes);
+
         if (!TryResolveProcessIdentity(processId, out var processName, out var executablePath))
         {
+            LogRuntimeStatsIfDue(DateTime.UtcNow);
             return;
         }
 
@@ -150,6 +177,10 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
             IsDownload = isDownload,
             Timestamp = DateTime.Now
         });
+
+        Interlocked.Increment(ref _eventsEnqueued);
+        Interlocked.Add(ref _bytesEnqueued, bytes);
+        LogRuntimeStatsIfDue(DateTime.UtcNow);
     }
 
     private bool TryResolveProcessIdentity(int processId, out string processName, out string executablePath)
@@ -161,7 +192,17 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
                 cached.LastSeenUtc = DateTime.UtcNow;
                 processName = cached.ProcessName;
                 executablePath = cached.ExecutablePath;
+                Interlocked.Increment(ref _identityCacheHits);
                 return true;
+            }
+
+            if (_filteredProcessIds.TryGetValue(processId, out var filteredAtUtc) &&
+                DateTime.UtcNow - filteredAtUtc <= FilteredProcessCacheRetention)
+            {
+                processName = string.Empty;
+                executablePath = string.Empty;
+                Interlocked.Increment(ref _identityFilteredCacheHits);
+                return false;
             }
         }
 
@@ -172,11 +213,19 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
             {
                 processName = string.Empty;
                 executablePath = string.Empty;
+                Interlocked.Increment(ref _identityFiltered);
+
+                lock (_sync)
+                {
+                    _filteredProcessIds[processId] = DateTime.UtcNow;
+                }
+
                 return false;
             }
 
             executablePath = TryGetExecutablePath(process);
             processName = ApplicationIdentityResolver.Resolve(process.ProcessName, executablePath);
+            Interlocked.Increment(ref _identityResolves);
 
             lock (_sync)
             {
@@ -194,6 +243,7 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
         {
             processName = string.Empty;
             executablePath = string.Empty;
+            Interlocked.Increment(ref _identityResolveFailures);
             return false;
         }
     }
@@ -209,6 +259,14 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
             {
                 _processIdentities.Remove(pid);
             }
+
+            foreach (var pid in _filteredProcessIds
+                         .Where(pair => nowUtc - pair.Value > FilteredProcessCacheRetention)
+                         .Select(pair => pair.Key)
+                         .ToArray())
+            {
+                _filteredProcessIds.Remove(pid);
+            }
         }
     }
 
@@ -221,6 +279,26 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
         catch
         {
             return string.Empty;
+        }
+    }
+
+    private void LogRuntimeStatsIfDue(DateTime nowUtc)
+    {
+        if (nowUtc - _lastRuntimeStatsLoggedUtc < RuntimeStatsLogInterval)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            if (nowUtc - _lastRuntimeStatsLoggedUtc < RuntimeStatsLogInterval)
+            {
+                return;
+            }
+
+            _lastRuntimeStatsLoggedUtc = nowUtc;
+            StartupPerformanceTrace.MarkRuntime(
+                $"NetworkTrace status=\"{Status}\" observed={Interlocked.Read(ref _eventsObserved)} enqueued={Interlocked.Read(ref _eventsEnqueued)} drained={Interlocked.Read(ref _eventsDrained)} drains={Interlocked.Read(ref _drains)} bytes_observed={Interlocked.Read(ref _bytesObserved)} bytes_enqueued={Interlocked.Read(ref _bytesEnqueued)} identity_cache_hits={Interlocked.Read(ref _identityCacheHits)} identity_filtered_cache_hits={Interlocked.Read(ref _identityFilteredCacheHits)} identity_resolves={Interlocked.Read(ref _identityResolves)} identity_filtered={Interlocked.Read(ref _identityFiltered)} identity_failures={Interlocked.Read(ref _identityResolveFailures)} queue_len={_queue.Count} identity_cache_size={_processIdentities.Count} filtered_pid_cache_size={_filteredProcessIds.Count}");
         }
     }
 

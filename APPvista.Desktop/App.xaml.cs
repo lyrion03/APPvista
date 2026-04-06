@@ -49,9 +49,14 @@ public partial class App : System.Windows.Application
 
         var startupTimestamp = Stopwatch.GetTimestamp();
         var dataDirectory = ResolveDataDirectory();
-        StartupPerformanceTrace.Initialize(dataDirectory);
-        StartupPerformanceTrace.Mark("App.OnStartup entered");
         _dataDirectory = dataDirectory;
+        var diagnosticsPath = Path.Combine(dataDirectory, "diagnostics.json");
+        var diagnosticsOptions = new DiagnosticsOptionsStore(diagnosticsPath).Load();
+        StartupPerformanceTrace.Initialize(
+            dataDirectory,
+            diagnosticsOptions.EnableStartupPerformanceLog,
+            diagnosticsOptions.EnableRuntimePerformanceLog);
+        StartupPerformanceTrace.Mark("App.OnStartup entered");
 
         var iconCacheDirectory = Path.Combine(dataDirectory, "icon-cache");
         var databasePath = Path.Combine(dataDirectory, "monitoring.db");
