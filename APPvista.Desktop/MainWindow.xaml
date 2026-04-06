@@ -1621,17 +1621,17 @@
                     </Grid>
 
                     <Grid Grid.Column="9">
-                        <Button x:Name="WhitelistButton"
+                        <Button x:Name="BlacklistButton"
                                 Style="{StaticResource OverviewActionButtonStyle}"
-                                Command="{Binding ToggleWhitelistPopupCommand}"
-                                Content="白名单"
+                                Command="{Binding ToggleBlacklistPopupCommand}"
+                                Content="黑名单"
                                 Foreground="#FFF7EC" />
 
-                        <Popup PlacementTarget="{Binding ElementName=WhitelistButton}"
+                        <Popup PlacementTarget="{Binding ElementName=BlacklistButton}"
                                Placement="Bottom"
                                StaysOpen="False"
                                AllowsTransparency="True"
-                               IsOpen="{Binding IsWhitelistPopupOpen, Mode=TwoWay}">
+                               IsOpen="{Binding IsBlacklistPopupOpen, Mode=TwoWay}">
                             <Border Width="280"
                                     Margin="0,8,0,0"
                                     Padding="16"
@@ -1643,20 +1643,41 @@
                                     <TextBlock Foreground="#213B35"
                                                FontSize="16"
                                                FontWeight="SemiBold"
-                                               Text="白名单设置" />
+                                               Text="黑名单设置" />
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="#647067"
-                                               FontSize="12"
-                                               Text="勾选后会从主列表中隐藏该应用" />
+                                               FontSize="12">
+                                        <Run Text="勾选后仅从主列表隐藏；点击名称变红后" />
+                                        <LineBreak />
+                                        <Run Text="完全忽略该应用，并从历史统计与 TopN 排除" />
+                                    </TextBlock>
                                     <ScrollViewer Margin="0,12,0,0"
                                                   MaxHeight="360"
                                                   VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding WhitelistCandidates}">
+                                        <ItemsControl ItemsSource="{Binding BlacklistCandidates}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <CheckBox Margin="0,0,0,8"
-                                                              Content="{Binding DisplayName}"
-                                                              IsChecked="{Binding IsWhitelisted, Mode=TwoWay}" />
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox VerticalAlignment="Center"
+                                                                  Visibility="{Binding CheckboxVisibility}"
+                                                                  IsChecked="{Binding IsBlacklisted, Mode=TwoWay}" />
+                                                        <Button Grid.Column="1"
+                                                                Margin="8,0,0,0"
+                                                                Padding="0"
+                                                                HorizontalAlignment="Left"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Command="{Binding ToggleIgnoredCommand}"
+                                                                Cursor="Cross">
+                                                            <TextBlock Foreground="{Binding NameForeground}"
+                                                                       FontWeight="{Binding NameFontWeight}"
+                                                                       Text="{Binding DisplayName}" />
+                                                        </Button>
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

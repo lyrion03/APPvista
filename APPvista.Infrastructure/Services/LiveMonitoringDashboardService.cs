@@ -8,7 +8,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
     private static readonly TimeSpan PersistInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(10);
     private readonly IProcessSnapshotProvider _processSnapshotProvider;
-    private readonly IWhitelistStore _whitelistStore;
+    private readonly IBlacklistStore _blacklistStore;
     private readonly IDailyProcessActivityStore _dailyProcessActivityStore;
     private readonly IProcessNetworkUsageSource _networkUsageSource;
     private readonly object _sync = new();
@@ -29,13 +29,13 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
 
     public LiveMonitoringDashboardService(
         IProcessSnapshotProvider processSnapshotProvider,
-        IWhitelistStore whitelistStore,
+        IBlacklistStore blacklistStore,
         IDailyProcessActivityStore dailyProcessActivityStore,
         IProcessNetworkUsageSource networkUsageSource,
         bool windowedOnlyRecording = false)
     {
         _processSnapshotProvider = processSnapshotProvider;
-        _whitelistStore = whitelistStore;
+        _blacklistStore = blacklistStore;
         _dailyProcessActivityStore = dailyProcessActivityStore;
         _networkUsageSource = networkUsageSource;
         _windowedOnlyRecording = windowedOnlyRecording;
@@ -65,29 +65,34 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             var today = DateOnly.FromDateTime(nowLocal);
 
             EnsureCurrentDay(today);
-            ApplyNetworkEvents(today);
+            var blacklist = _blacklistStore.Load();
+            var ignoredProcesses = blacklist
+                .Where(static item => item.Value == BlacklistEntryMode.Ignored)
+                .Select(static item => item.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var hiddenProcesses = blacklist.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            ApplyNetworkEvents(today, ignoredProcesses);
 
             var bandwidthWindowSeconds = GetBandwidthWindowSeconds(nowUtc);
-            var bandwidthByProcess = BuildRealtimeBandwidth(bandwidthWindowSeconds);
-
-            var whitelist = _whitelistStore.Load();
+            var bandwidthByProcess = BuildRealtimeBandwidth(bandwidthWindowSeconds, ignoredProcesses);
             var captureBatch = _processSnapshotProvider.CaptureTopProcesses(
                 _isFirstCapture ? 128 : 512,
                 lightweight: _isFirstCapture);
             _isFirstCapture = false;
             var incompleteProcessNames = new HashSet<string>(captureBatch.IncompleteProcessNames, StringComparer.OrdinalIgnoreCase);
             var allProcesses = captureBatch.Processes;
-            UpdateDailyActivity(allProcesses, nowUtc, today);
-            var includedLiveProcessSamples = allProcesses.Where(ShouldIncludeForRecording).ToList();
+            UpdateDailyActivity(allProcesses, nowUtc, today, ignoredProcesses);
+            var includedLiveProcessSamples = allProcesses.Where(process => ShouldIncludeForRecording(process, ignoredProcesses)).ToList();
 
             var liveProcesses = includedLiveProcessSamples
-                .Where(item => !whitelist.Contains(item.ProcessName))
+                .Where(item => !hiddenProcesses.Contains(item.ProcessName))
                 .Select(item => AttachDailyActivity(item, bandwidthByProcess))
                 .ToList();
 
             foreach (var processName in incompleteProcessNames)
             {
-                if (whitelist.Contains(processName))
+                if (hiddenProcesses.Contains(processName))
                 {
                     continue;
                 }
@@ -101,7 +106,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             UpdateLiveSnapshotCache(liveProcesses);
 
             var closedProcesses = _dailySummaries.Values
-                .Where(summary => !whitelist.Contains(summary.ProcessName))
+                .Where(summary => !hiddenProcesses.Contains(summary.ProcessName))
                 .Where(summary => !_windowedOnlyRecording || summary.HasMainWindow)
                 .Where(summary => !incompleteProcessNames.Contains(summary.ProcessName))
                 .Where(summary => liveProcesses.All(item => !string.Equals(item.ProcessName, summary.ProcessName, StringComparison.OrdinalIgnoreCase)))
@@ -124,10 +129,11 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 .ThenByDescending(item => item.DailyForegroundMilliseconds + item.DailyBackgroundMilliseconds)
                 .ThenByDescending(item => item.CpuUsagePercent)
                 .ThenByDescending(item => item.WorkingSetBytes)
-                .Take(50)
+                .Take(75)
                 .ToList();
 
             var trackedProcessCount = _dailySummaries.Count(summary =>
+                !ignoredProcesses.Contains(summary.Key) &&
                 (!_windowedOnlyRecording || summary.Value.HasMainWindow) &&
                 (summary.Value.ForegroundMilliseconds > 0 ||
                  summary.Value.BackgroundMilliseconds > 0 ||
@@ -136,7 +142,10 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                  summary.Value.IoReadBytes > 0 ||
                  summary.Value.IoWriteBytes > 0 ||
                  summary.Value.ThreadSamples > 0));
-            var includedSummaries = _dailySummaries.Values.Where(summary => !_windowedOnlyRecording || summary.HasMainWindow).ToList();
+            var includedSummaries = _dailySummaries.Values
+                .Where(summary => !ignoredProcesses.Contains(summary.ProcessName))
+                .Where(summary => !_windowedOnlyRecording || summary.HasMainWindow)
+                .ToList();
             var totalDownloadBytes = includedSummaries.Sum(item => item.DownloadBytes);
             var totalUploadBytes = includedSummaries.Sum(item => item.UploadBytes);
             var totalIoReadBytes = includedSummaries.Sum(item => item.IoReadBytes);
@@ -168,7 +177,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 RealtimeIoWriteBytesPerSecond = realtimeIoWriteBytesPerSecond,
                 TodayIoReadBytes = totalIoReadBytes,
                 TodayIoWriteBytes = totalIoWriteBytes,
-                WhitelistCount = whitelist.Count,
+                BlacklistCount = blacklist.Count,
                 StorageStatus = trackedProcessCount > 0 ? $"SQLite 已累计 {trackedProcessCount} 个应用的今日日统计" : "SQLite 仓储已就绪",
                 DailyActivityStatus = _lastSampleTimeUtc.HasValue ? $"持续累计中，最后采样 {nowLocal:HH:mm:ss}" : "等待下一次采样",
                 TopProcesses = topProcesses
@@ -215,7 +224,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             .ToDictionary(item => item.ProcessName, StringComparer.OrdinalIgnoreCase);
     }
 
-    private void ApplyNetworkEvents(DateOnly today)
+    private void ApplyNetworkEvents(DateOnly today, IReadOnlySet<string> ignoredProcesses)
     {
         var events = _networkUsageSource.DrainPendingEvents();
         if (events.Count == 0)
@@ -226,6 +235,11 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         foreach (var usageEvent in events)
         {
             if (usageEvent.Bytes <= 0 || string.IsNullOrWhiteSpace(usageEvent.ProcessName))
+            {
+                continue;
+            }
+
+            if (ignoredProcesses.Contains(usageEvent.ProcessName))
             {
                 continue;
             }
@@ -271,12 +285,19 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         return seconds <= 0 ? 1d : seconds;
     }
 
-    private Dictionary<string, (long DownloadBytesPerSecond, long UploadBytesPerSecond)> BuildRealtimeBandwidth(double bandwidthWindowSeconds)
+    private Dictionary<string, (long DownloadBytesPerSecond, long UploadBytesPerSecond)> BuildRealtimeBandwidth(
+        double bandwidthWindowSeconds,
+        IReadOnlySet<string> ignoredProcesses)
     {
         var result = new Dictionary<string, (long DownloadBytesPerSecond, long UploadBytesPerSecond)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var pair in _pendingBandwidthByProcess)
         {
+            if (ignoredProcesses.Contains(pair.Key))
+            {
+                continue;
+            }
+
             var downloadBytesPerSecond = (long)Math.Round(pair.Value.DownloadBytes / bandwidthWindowSeconds, MidpointRounding.AwayFromZero);
             var uploadBytesPerSecond = (long)Math.Round(pair.Value.UploadBytes / bandwidthWindowSeconds, MidpointRounding.AwayFromZero);
             result[pair.Key] = (downloadBytesPerSecond, uploadBytesPerSecond);
@@ -290,7 +311,11 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         return result;
     }
 
-    private void UpdateDailyActivity(IReadOnlyList<ProcessResourceSnapshot> allProcesses, DateTime nowUtc, DateOnly today)
+    private void UpdateDailyActivity(
+        IReadOnlyList<ProcessResourceSnapshot> allProcesses,
+        DateTime nowUtc,
+        DateOnly today,
+        IReadOnlySet<string> ignoredProcesses)
     {
         var elapsed = _lastSampleTimeUtc.HasValue
             ? nowUtc - _lastSampleTimeUtc.Value
@@ -300,7 +325,7 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         {
             foreach (var process in allProcesses)
             {
-                if (!ShouldIncludeForRecording(process))
+                if (!ShouldIncludeForRecording(process, ignoredProcesses))
                 {
                     continue;
                 }
@@ -595,9 +620,10 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         _hasDirtySummaries = true;
     }
 
-    private bool ShouldIncludeForRecording(ProcessResourceSnapshot process)
+    private bool ShouldIncludeForRecording(ProcessResourceSnapshot process, IReadOnlySet<string> ignoredProcesses)
     {
-        return !_windowedOnlyRecording || process.HasMainWindow;
+        return !ignoredProcesses.Contains(process.ProcessName) &&
+               (!_windowedOnlyRecording || process.HasMainWindow);
     }
 
     private void PurgeNonWindowedRecordsForCurrentDay()

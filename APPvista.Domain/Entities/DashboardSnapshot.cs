@@ -17,7 +17,7 @@ public sealed class DashboardSnapshot
     public long RealtimeIoWriteBytesPerSecond { get; init; }
     public long TodayIoReadBytes { get; init; }
     public long TodayIoWriteBytes { get; init; }
-    public int WhitelistCount { get; init; }
+    public int BlacklistCount { get; init; }
     public string StorageStatus { get; init; } = string.Empty;
     public string DailyActivityStatus { get; init; } = string.Empty;
     public IReadOnlyList<ProcessResourceSnapshot> TopProcesses { get; init; } =

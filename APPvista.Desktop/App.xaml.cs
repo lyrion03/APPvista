@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -19,7 +19,7 @@ public partial class App : System.Windows.Application
     private string? _dataDirectory;
     private string? _databasePath;
     private IProcessSnapshotProvider? _processSnapshotProvider;
-    private IWhitelistStore? _whitelistStore;
+    private IBlacklistStore? _blacklistStore;
     private IDailyProcessActivityStore? _dailyProcessActivityStore;
     private IProcessNetworkUsageSource? _networkUsageSource;
     private IMonitoringDashboardService? _dashboardService;
@@ -54,7 +54,7 @@ public partial class App : System.Windows.Application
         var iconCacheDirectory = Path.Combine(dataDirectory, "icon-cache");
         var databasePath = Path.Combine(dataDirectory, "monitoring.db");
         _databasePath = databasePath;
-        var whitelistPath = Path.Combine(dataDirectory, "process-whitelist.json");
+        var blacklistPath = Path.Combine(dataDirectory, "process-blacklist.json");
         var applicationAliasPath = Path.Combine(dataDirectory, "application-aliases.json");
         var applicationCardMetricPreferencePath = Path.Combine(dataDirectory, "application-card-metrics.json");
         var windowedOnlyRecordingPath = Path.Combine(dataDirectory, "windowed-only-recording.json");
@@ -65,9 +65,9 @@ public partial class App : System.Windows.Application
             new TracingProcessSnapshotProvider(new ProcessSnapshotProvider());
         StartupPerformanceTrace.MarkDuration("ProcessSnapshotProvider created", processSnapshotProviderStarted);
 
-        var whitelistStoreStarted = Stopwatch.GetTimestamp();
-        _whitelistStore = new SqliteWhitelistStore(databasePath, whitelistPath);
-        StartupPerformanceTrace.MarkDuration("SqliteWhitelistStore created", whitelistStoreStarted);
+        var blacklistStoreStarted = Stopwatch.GetTimestamp();
+        _blacklistStore = new SqliteBlacklistStore(databasePath, blacklistPath);
+        StartupPerformanceTrace.MarkDuration("SqliteBlacklistStore created", blacklistStoreStarted);
 
         var dailyStoreStarted = Stopwatch.GetTimestamp();
         _dailyProcessActivityStore = new SqliteDailyProcessActivityStore(databasePath);
@@ -119,7 +119,7 @@ public partial class App : System.Windows.Application
         _dashboardService = new TracingMonitoringDashboardService(
             new LiveMonitoringDashboardService(
                 _processSnapshotProvider,
-                _whitelistStore,
+                _blacklistStore,
                 _dailyProcessActivityStore,
                 _networkUsageSource,
                 isWindowedOnlyRecording));
@@ -214,7 +214,7 @@ public partial class App : System.Windows.Application
     private MainWindow CreateMainWindow()
     {
         if (_dashboardService is null ||
-            _whitelistStore is null ||
+            _blacklistStore is null ||
             _applicationIconCache is null ||
             _applicationAliasStore is null ||
             _applicationCardMetricPreferenceStore is null ||
@@ -228,7 +228,7 @@ public partial class App : System.Windows.Application
 
         var viewModel = new DashboardViewModel(
             _dashboardService,
-            _whitelistStore,
+            _blacklistStore,
             _applicationIconCache,
             _applicationAliasStore,
             _applicationCardMetricPreferenceStore,

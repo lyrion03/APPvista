@@ -16,8 +16,9 @@ internal static class SqliteMonitoringDatabase
         using (var command = connection.CreateCommand())
         {
             command.CommandText = @"
-CREATE TABLE IF NOT EXISTS whitelist_entries (
-    process_name TEXT NOT NULL COLLATE NOCASE PRIMARY KEY
+CREATE TABLE IF NOT EXISTS blacklist_entries (
+    process_name TEXT NOT NULL COLLATE NOCASE PRIMARY KEY,
+    mode INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS daily_process_activity (
@@ -75,6 +76,7 @@ CREATE TABLE IF NOT EXISTS daily_process_activity (
         EnsureColumn(connection, "daily_process_activity", "peak_io_write_bytes_per_second", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "daily_process_activity", "peak_io_bytes_per_second", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "daily_process_activity", "has_main_window", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "blacklist_entries", "mode", "INTEGER NOT NULL DEFAULT 1");
     }
 
     public static SqliteConnection OpenConnection(string databasePath)

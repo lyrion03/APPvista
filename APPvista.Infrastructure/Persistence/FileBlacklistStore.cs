@@ -1,19 +1,19 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using APPvista.Application.Abstractions;
 
 namespace APPvista.Infrastructure.Persistence;
 
-public sealed class FileWhitelistStore : IWhitelistStore
+public sealed class FileBlacklistStore : IBlacklistStore
 {
     private readonly string _filePath;
     private readonly object _sync = new();
 
-    public FileWhitelistStore(string filePath)
+    public FileBlacklistStore(string filePath)
     {
         _filePath = filePath;
     }
 
-    public IReadOnlySet<string> Load()
+    public IReadOnlyDictionary<string, BlacklistEntryMode> Load()
     {
         lock (_sync)
         {
@@ -23,23 +23,31 @@ public sealed class FileWhitelistStore : IWhitelistStore
             {
                 var json = File.ReadAllText(_filePath);
                 var items = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-                return new HashSet<string>(items.Where(item => !string.IsNullOrWhiteSpace(item)), StringComparer.OrdinalIgnoreCase);
+                return items
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Select(item => item.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        static item => item,
+                        static _ => BlacklistEntryMode.Hidden,
+                        StringComparer.OrdinalIgnoreCase);
             }
             catch
             {
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                return new Dictionary<string, BlacklistEntryMode>(StringComparer.OrdinalIgnoreCase);
             }
         }
     }
 
-    public void Save(IEnumerable<string> processNames)
+    public void Save(IEnumerable<BlacklistEntry> entries)
     {
         lock (_sync)
         {
-            var items = processNames
-                .Where(item => !string.IsNullOrWhiteSpace(item))
+            var items = entries
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.ProcessName))
+                .Select(entry => entry.ProcessName.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             var directory = Path.GetDirectoryName(_filePath);

@@ -1,14 +1,17 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
+using APPvista.Application.Abstractions;
 
 namespace APPvista.Desktop.Services;
 
 public sealed class HistoryAnalysisProvider
 {
     private readonly string _databasePath;
+    private readonly IBlacklistStore _blacklistStore;
 
-    public HistoryAnalysisProvider(string databasePath)
+    public HistoryAnalysisProvider(string databasePath, IBlacklistStore blacklistStore)
     {
         _databasePath = databasePath;
+        _blacklistStore = blacklistStore;
     }
 
     public IReadOnlyList<HistoryDailyRecord> LoadDailyRecords(int maxDays)
@@ -47,23 +50,10 @@ public sealed class HistoryAnalysisProvider
             return [];
         }
 
+        var ignoredProcesses = LoadIgnoredProcesses();
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = @"
-SELECT
-    process_name,
-    MAX(executable_path) AS executable_path,
-    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(download_bytes), 0) AS download_bytes,
-    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
-    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
-    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes
-FROM daily_process_activity
-WHERE day >= $startDay
-  AND day <= $endDay
-GROUP BY process_name
-ORDER BY process_name COLLATE NOCASE;";
+        command.CommandText = BuildLoadApplicationAggregatesSql(ignoredProcesses, command);
         command.Parameters.AddWithValue("$startDay", startDay.ToString("yyyy-MM-dd"));
         command.Parameters.AddWithValue("$endDay", endDay.ToString("yyyy-MM-dd"));
 
@@ -89,43 +79,10 @@ ORDER BY process_name COLLATE NOCASE;";
 
     private List<HistoryDailyRecord> LoadApplicationDailyRecords(int maxDays)
     {
+        var ignoredProcesses = LoadIgnoredProcesses();
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = @"
-WITH day_ranked AS (
-    SELECT
-        day,
-        process_name,
-        foreground_milliseconds,
-        (foreground_milliseconds + background_milliseconds) AS total_usage_milliseconds,
-        ROW_NUMBER() OVER (
-            PARTITION BY day
-            ORDER BY foreground_milliseconds DESC, (foreground_milliseconds + background_milliseconds) DESC, process_name COLLATE NOCASE
-        ) AS usage_rank
-    FROM daily_process_activity
-)
-SELECT
-    d.day,
-    COUNT(*) AS application_count,
-    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(d.download_bytes), 0) AS app_download_bytes,
-    COALESCE(SUM(d.upload_bytes), 0) AS app_upload_bytes,
-    COALESCE(SUM(d.io_read_bytes), 0) AS app_io_read_bytes,
-    COALESCE(SUM(d.io_write_bytes), 0) AS app_io_write_bytes,
-    COALESCE(SUM(d.foreground_cpu_total + d.background_cpu_total), 0) AS cpu_total,
-    COALESCE(SUM(d.foreground_samples + d.background_samples), 0) AS cpu_samples,
-    COALESCE(MAX(d.peak_working_set_bytes), 0) AS peak_working_set_bytes,
-    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.process_name END), '') AS top_application_name,
-    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.foreground_milliseconds END), 0) AS top_application_foreground_milliseconds,
-    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.total_usage_milliseconds END), 0) AS top_application_usage_milliseconds
-FROM daily_process_activity d
-LEFT JOIN day_ranked r
-    ON r.day = d.day
-   AND r.process_name = d.process_name
-GROUP BY d.day
-ORDER BY d.day DESC
-LIMIT $limit;";
+        command.CommandText = BuildLoadApplicationDailyRecordsSql(ignoredProcesses, command);
         command.Parameters.AddWithValue("$limit", maxDays);
 
         using var reader = command.ExecuteReader();
@@ -208,6 +165,100 @@ FROM system_daily_io_totals;";
         var connection = new SqliteConnection(builder.ConnectionString);
         connection.Open();
         return connection;
+    }
+
+    private List<string> LoadIgnoredProcesses()
+    {
+        return _blacklistStore.Load()
+            .Where(static item => item.Value == BlacklistEntryMode.Ignored)
+            .Select(static item => item.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string BuildLoadApplicationAggregatesSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)
+    {
+        return $@"
+SELECT
+    process_name,
+    MAX(executable_path) AS executable_path,
+    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes
+FROM daily_process_activity
+WHERE day >= $startDay
+  AND day <= $endDay{BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
+GROUP BY process_name
+ORDER BY process_name COLLATE NOCASE;";
+    }
+
+    private static string BuildLoadApplicationDailyRecordsSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)
+    {
+        var dayRankedClause = BuildIgnoredProcessClause(ignoredProcesses, command, "process_name", "ranked");
+        var dailyClause = BuildIgnoredProcessClause(ignoredProcesses, command, "d.process_name", "daily");
+
+        return $@"
+WITH day_ranked AS (
+    SELECT
+        day,
+        process_name,
+        foreground_milliseconds,
+        (foreground_milliseconds + background_milliseconds) AS total_usage_milliseconds,
+        ROW_NUMBER() OVER (
+            PARTITION BY day
+            ORDER BY foreground_milliseconds DESC, (foreground_milliseconds + background_milliseconds) DESC, process_name COLLATE NOCASE
+        ) AS usage_rank
+    FROM daily_process_activity
+    WHERE 1 = 1{dayRankedClause}
+)
+SELECT
+    d.day,
+    COUNT(*) AS application_count,
+    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(d.download_bytes), 0) AS app_download_bytes,
+    COALESCE(SUM(d.upload_bytes), 0) AS app_upload_bytes,
+    COALESCE(SUM(d.io_read_bytes), 0) AS app_io_read_bytes,
+    COALESCE(SUM(d.io_write_bytes), 0) AS app_io_write_bytes,
+    COALESCE(SUM(d.foreground_cpu_total + d.background_cpu_total), 0) AS cpu_total,
+    COALESCE(SUM(d.foreground_samples + d.background_samples), 0) AS cpu_samples,
+    COALESCE(MAX(d.peak_working_set_bytes), 0) AS peak_working_set_bytes,
+    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.process_name END), '') AS top_application_name,
+    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.foreground_milliseconds END), 0) AS top_application_foreground_milliseconds,
+    COALESCE(MAX(CASE WHEN r.usage_rank = 1 THEN r.total_usage_milliseconds END), 0) AS top_application_usage_milliseconds
+FROM daily_process_activity d
+LEFT JOIN day_ranked r
+    ON r.day = d.day
+   AND r.process_name = d.process_name
+WHERE 1 = 1{dailyClause}
+GROUP BY d.day
+ORDER BY d.day DESC
+LIMIT $limit;";
+    }
+
+    private static string BuildIgnoredProcessClause(
+        IReadOnlyList<string> ignoredProcesses,
+        SqliteCommand command,
+        string columnExpression,
+        string parameterPrefix = "ignored")
+    {
+        if (ignoredProcesses.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parameterNames = new string[ignoredProcesses.Count];
+        for (var i = 0; i < ignoredProcesses.Count; i++)
+        {
+            parameterNames[i] = $"${parameterPrefix}Process{i}";
+            command.Parameters.AddWithValue(parameterNames[i], ignoredProcesses[i]);
+        }
+
+        return $" AND {columnExpression} NOT IN ({string.Join(", ", parameterNames)})";
     }
 }
 

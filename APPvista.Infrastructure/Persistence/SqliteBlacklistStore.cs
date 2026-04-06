@@ -1,14 +1,14 @@
-﻿using APPvista.Application.Abstractions;
+using APPvista.Application.Abstractions;
 
 namespace APPvista.Infrastructure.Persistence;
 
-public sealed class SqliteWhitelistStore : IWhitelistStore
+public sealed class SqliteBlacklistStore : IBlacklistStore
 {
     private readonly string _databasePath;
     private readonly string? _legacyFilePath;
     private readonly object _sync = new();
 
-    public SqliteWhitelistStore(string databasePath, string? legacyFilePath = null)
+    public SqliteBlacklistStore(string databasePath, string? legacyFilePath = null)
     {
         _databasePath = databasePath;
         _legacyFilePath = legacyFilePath;
@@ -20,38 +20,48 @@ public sealed class SqliteWhitelistStore : IWhitelistStore
         }
     }
 
-    public IReadOnlySet<string> Load()
+    public IReadOnlyDictionary<string, BlacklistEntryMode> Load()
     {
         lock (_sync)
         {
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT process_name FROM whitelist_entries ORDER BY process_name COLLATE NOCASE;";
+            command.CommandText = "SELECT process_name, mode FROM blacklist_entries ORDER BY process_name COLLATE NOCASE;";
 
             using var reader = command.ExecuteReader();
-            var items = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var items = new Dictionary<string, BlacklistEntryMode>(StringComparer.OrdinalIgnoreCase);
             while (reader.Read())
             {
                 var processName = reader.GetString(0);
-                if (!string.IsNullOrWhiteSpace(processName))
+                if (string.IsNullOrWhiteSpace(processName))
                 {
-                    items.Add(processName);
+                    continue;
                 }
+
+                var modeValue = reader.IsDBNull(1) ? (int)BlacklistEntryMode.Hidden : reader.GetInt32(1);
+                var mode = Enum.IsDefined(typeof(BlacklistEntryMode), modeValue)
+                    ? (BlacklistEntryMode)modeValue
+                    : BlacklistEntryMode.Hidden;
+                items[processName] = mode;
             }
 
             return items;
         }
     }
 
-    public void Save(IEnumerable<string> processNames)
+    public void Save(IEnumerable<BlacklistEntry> entries)
     {
         lock (_sync)
         {
-            var items = processNames
-                .Where(item => !string.IsNullOrWhiteSpace(item))
-                .Select(item => item.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+            var items = entries
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.ProcessName))
+                .GroupBy(entry => entry.ProcessName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var entry = group.Last();
+                    return new BlacklistEntry(group.Key, entry.Mode);
+                })
+                .OrderBy(static entry => entry.ProcessName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
@@ -60,7 +70,7 @@ public sealed class SqliteWhitelistStore : IWhitelistStore
             using (var deleteCommand = connection.CreateCommand())
             {
                 deleteCommand.Transaction = transaction;
-                deleteCommand.CommandText = "DELETE FROM whitelist_entries;";
+                deleteCommand.CommandText = "DELETE FROM blacklist_entries;";
                 deleteCommand.ExecuteNonQuery();
             }
 
@@ -68,8 +78,9 @@ public sealed class SqliteWhitelistStore : IWhitelistStore
             {
                 using var insertCommand = connection.CreateCommand();
                 insertCommand.Transaction = transaction;
-                insertCommand.CommandText = "INSERT INTO whitelist_entries (process_name) VALUES ($processName);";
-                insertCommand.Parameters.AddWithValue("$processName", item);
+                insertCommand.CommandText = "INSERT INTO blacklist_entries (process_name, mode) VALUES ($processName, $mode);";
+                insertCommand.Parameters.AddWithValue("$processName", item.ProcessName);
+                insertCommand.Parameters.AddWithValue("$mode", (int)item.Mode);
                 insertCommand.ExecuteNonQuery();
             }
 
@@ -86,20 +97,20 @@ public sealed class SqliteWhitelistStore : IWhitelistStore
 
         using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
         using var countCommand = connection.CreateCommand();
-        countCommand.CommandText = "SELECT COUNT(*) FROM whitelist_entries;";
+        countCommand.CommandText = "SELECT COUNT(*) FROM blacklist_entries;";
         var existingCount = (long)(countCommand.ExecuteScalar() ?? 0L);
         if (existingCount > 0)
         {
             return;
         }
 
-        var legacyStore = new FileWhitelistStore(_legacyFilePath);
+        var legacyStore = new FileBlacklistStore(_legacyFilePath);
         var legacyItems = legacyStore.Load();
         if (legacyItems.Count == 0)
         {
             return;
         }
 
-        Save(legacyItems);
+        Save(legacyItems.Select(static item => new BlacklistEntry(item.Key, item.Value)));
     }
 }

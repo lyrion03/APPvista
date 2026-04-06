@@ -66,7 +66,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     }
 
     private readonly IMonitoringDashboardService _dashboardService;
-    private readonly IWhitelistStore _whitelistStore;
+    private readonly IBlacklistStore _blacklistStore;
     private readonly ApplicationIconCache _applicationIconCache;
     private readonly ApplicationAliasStore _applicationAliasStore;
     private readonly ApplicationCardMetricPreferenceStore _applicationCardMetricPreferenceStore;
@@ -85,10 +85,10 @@ public sealed partial class DashboardViewModel : ObservableObject
     private readonly List<double> _ioWriteHistory = [];
     private DashboardSnapshot _snapshot;
     private SystemOverviewSnapshot _systemOverviewSnapshot;
-    private bool _isWhitelistPopupOpen;
+    private bool _isBlacklistPopupOpen;
     private bool _isCustomMetricPopupOpen;
     private bool _isWindowedOnlyRecordingConfirmOpen;
-    private bool _updatingWhitelistCandidates;
+    private bool _updatingBlacklistCandidates;
     private bool _isRefreshing;
     private bool _pendingRefresh;
     private bool _pendingRefreshWithSort;
@@ -103,12 +103,12 @@ public sealed partial class DashboardViewModel : ObservableObject
     private bool _isWindowedOnlyRecording;
     private bool _isMainWindowRenderingActive = true;
     private bool _hasDeferredMainWindowRefresh;
-    private bool _pendingWhitelistCandidateRefresh;
+    private bool _pendingBlacklistCandidateRefresh;
     private double _applicationCardViewportWidth = DefaultApplicationCardViewportWidth;
 
     public DashboardViewModel(
         IMonitoringDashboardService dashboardService,
-        IWhitelistStore whitelistStore,
+        IBlacklistStore blacklistStore,
         ApplicationIconCache applicationIconCache,
         ApplicationAliasStore applicationAliasStore,
         ApplicationCardMetricPreferenceStore applicationCardMetricPreferenceStore,
@@ -118,7 +118,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         string databasePath)
     {
         _dashboardService = dashboardService;
-        _whitelistStore = whitelistStore;
+        _blacklistStore = blacklistStore;
         _applicationIconCache = applicationIconCache;
         _applicationAliasStore = applicationAliasStore;
         _applicationCardMetricPreferenceStore = applicationCardMetricPreferenceStore;
@@ -126,7 +126,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         _windowedOnlyRecordingStore = windowedOnlyRecordingStore;
         _detailDisplayPreferences = detailDisplayPreferences;
         _databasePath = databasePath;
-        _historyAnalysisProvider = new HistoryAnalysisProvider(databasePath);
+        _historyAnalysisProvider = new HistoryAnalysisProvider(databasePath, blacklistStore);
         _applicationAliases = new Dictionary<string, string>(_applicationAliasStore.Load(), StringComparer.OrdinalIgnoreCase);
         _openDetailWindows = new Dictionary<string, ApplicationDetailWindow>(StringComparer.OrdinalIgnoreCase);
         _snapshot = new DashboardSnapshot();
@@ -136,7 +136,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         Applications = new ObservableCollection<ApplicationCardViewModel>();
         ApplicationRows = new ObservableCollection<ApplicationCardRowViewModel>();
         CustomMetricGroups = [];
-        WhitelistCandidates = new ObservableCollection<WhitelistCandidateViewModel>();
+        BlacklistCandidates = new ObservableCollection<BlacklistCandidateViewModel>();
         HistoryCalendarDays = new ObservableCollection<HistoryCalendarDayViewModel>();
         HistoryTrafficTopApplications = new ObservableCollection<HistoryRankingItemViewModel>();
         HistoryIoTopApplications = new ObservableCollection<HistoryRankingItemViewModel>();
@@ -164,7 +164,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         _applicationCardMetricPreferences.PropertyChanged += OnApplicationCardMetricPreferencesPropertyChanged;
 
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(shouldSort: true));
-        ToggleWhitelistPopupCommand = new RelayCommand(ToggleWhitelistPopup);
+        ToggleBlacklistPopupCommand = new RelayCommand(ToggleBlacklistPopup);
         ToggleCustomMetricPopupCommand = new RelayCommand(ToggleCustomMetricPopup);
         SaveCustomMetricSelectionCommand = new RelayCommand(SaveCustomMetricSelection);
         ResetCustomMetricSelectionCommand = new RelayCommand(ResetCustomMetricSelection);
@@ -231,14 +231,14 @@ public sealed partial class DashboardViewModel : ObservableObject
     public ObservableCollection<ApplicationCardViewModel> Applications { get; }
     public ObservableCollection<ApplicationCardRowViewModel> ApplicationRows { get; }
     public ObservableCollection<ApplicationCardMetricGroupViewModel> CustomMetricGroups { get; }
-    public ObservableCollection<WhitelistCandidateViewModel> WhitelistCandidates { get; }
+    public ObservableCollection<BlacklistCandidateViewModel> BlacklistCandidates { get; }
     public ObservableCollection<string> SortOptions { get; }
     public ObservableCollection<RefreshIntervalOption> RefreshIntervalOptions { get; }
 
-    public bool IsWhitelistPopupOpen
+    public bool IsBlacklistPopupOpen
     {
-        get => _isWhitelistPopupOpen;
-        set => SetProperty(ref _isWhitelistPopupOpen, value);
+        get => _isBlacklistPopupOpen;
+        set => SetProperty(ref _isBlacklistPopupOpen, value);
     }
 
     public bool IsCustomMetricPopupOpen
@@ -367,7 +367,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     public ICommand SaveCustomMetricSelectionCommand { get; }
     public ICommand ResetCustomMetricSelectionCommand { get; }
     public ICommand CancelCustomMetricSelectionCommand { get; }
-    public ICommand ToggleWhitelistPopupCommand { get; }
+    public ICommand ToggleBlacklistPopupCommand { get; }
     public ICommand SetSortByNameCommand { get; }
     public ICommand SetSortByFocusCommand { get; }
     public ICommand SetSortByNetworkCommand { get; }
@@ -430,7 +430,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         _pendingRefresh = false;
         _pendingRefreshWithSort = false;
         _hasDeferredMainWindowRefresh = false;
-        _pendingWhitelistCandidateRefresh = false;
+        _pendingBlacklistCandidateRefresh = false;
         _hasStartedLoading = false;
         _historyAnalysisLoadVersion++;
         _systemOverviewInitializationTask = null;
@@ -456,7 +456,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         Applications.Clear();
         ApplicationRows.Clear();
         CustomMetricGroups.Clear();
-        WhitelistCandidates.Clear();
+        BlacklistCandidates.Clear();
         HistoryCalendarDays.Clear();
         HistoryTrafficTopApplications.Clear();
         HistoryIoTopApplications.Clear();
@@ -470,7 +470,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         _historyAverageApplicationCount = 0;
         _snapshot = new DashboardSnapshot();
         _systemOverviewSnapshot = new SystemOverviewSnapshot();
-        _isWhitelistPopupOpen = false;
+        _isBlacklistPopupOpen = false;
         _isCustomMetricPopupOpen = false;
         _isWindowedOnlyRecordingConfirmOpen = false;
     }
@@ -564,14 +564,14 @@ public sealed partial class DashboardViewModel : ObservableObject
                 if (shouldRenderMainWindow)
                 {
                     RaiseLiveDisplayStateChanged();
-                    if (IsWhitelistPopupOpen)
+                    if (IsBlacklistPopupOpen)
                     {
-                        RebuildWhitelistCandidates();
-                        _pendingWhitelistCandidateRefresh = false;
+                        RebuildBlacklistCandidates();
+                        _pendingBlacklistCandidateRefresh = false;
                     }
                     else
                     {
-                        _pendingWhitelistCandidateRefresh = true;
+                        _pendingBlacklistCandidateRefresh = true;
                     }
                     if (IsHistoryPageActive)
                     {
@@ -614,7 +614,7 @@ public sealed partial class DashboardViewModel : ObservableObject
             RealtimeIoWriteBytesPerSecond = snapshot.RealtimeIoWriteBytesPerSecond,
             TodayIoReadBytes = snapshot.TodayIoReadBytes,
             TodayIoWriteBytes = snapshot.TodayIoWriteBytes,
-            WhitelistCount = snapshot.WhitelistCount,
+            BlacklistCount = snapshot.BlacklistCount,
             StorageStatus = snapshot.StorageStatus,
             DailyActivityStatus = snapshot.DailyActivityStatus,
             TopProcesses = snapshot.TopProcesses.Select(DecorateProcess).ToList()
@@ -888,63 +888,66 @@ public sealed partial class DashboardViewModel : ObservableObject
         return Math.Max(1, (int)Math.Floor((_applicationCardViewportWidth + ApplicationCardHorizontalSpacing) / slotWidth));
     }
 
-    private void RebuildWhitelistCandidates()
+    private void RebuildBlacklistCandidates()
     {
-        var whitelist = _whitelistStore.Load();
+        var blacklist = _blacklistStore.Load();
         var displayNamesByProcess = Snapshot.TopProcesses
             .GroupBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 static group => group.Key,
-                group => BuildWhitelistDisplayName(group.Key, group.First()),
+                group => BuildBlacklistDisplayName(group.Key, group.First()),
                 StringComparer.OrdinalIgnoreCase);
 
         var names = Snapshot.TopProcesses
             .Select(static item => item.ProcessName)
-            .Concat(whitelist)
+            .Concat(blacklist.Keys)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var existing = WhitelistCandidates.ToDictionary(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase);
-        var next = new List<WhitelistCandidateViewModel>();
-        _updatingWhitelistCandidates = true;
+        var existing = BlacklistCandidates.ToDictionary(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase);
+        var next = new List<BlacklistCandidateViewModel>();
+        _updatingBlacklistCandidates = true;
 
         foreach (var name in names)
         {
-            var selected = whitelist.Contains(name);
+            blacklist.TryGetValue(name, out var mode);
+            BlacklistEntryMode? selectedMode = blacklist.ContainsKey(name) ? mode : null;
             if (!existing.TryGetValue(name, out var candidate))
             {
-                candidate = new WhitelistCandidateViewModel(name, selected, OnWhitelistCandidateChanged);
+                candidate = new BlacklistCandidateViewModel(name, selectedMode, OnBlacklistCandidateChanged);
             }
-            else if (candidate.IsWhitelisted != selected)
+            else
             {
-                candidate.IsWhitelisted = selected;
+                candidate.UpdateMode(selectedMode);
             }
 
             candidate.UpdateDisplayName(displayNamesByProcess.TryGetValue(name, out var displayName)
                 ? displayName
-                : BuildWhitelistDisplayName(name, process: null));
+                : BuildBlacklistDisplayName(name, process: null));
 
             next.Add(candidate);
         }
 
-        WhitelistCandidates.Clear();
+        BlacklistCandidates.Clear();
         foreach (var candidate in next)
         {
-            WhitelistCandidates.Add(candidate);
+            BlacklistCandidates.Add(candidate);
         }
 
-        _updatingWhitelistCandidates = false;
+        _updatingBlacklistCandidates = false;
     }
 
-    private void OnWhitelistCandidateChanged(WhitelistCandidateViewModel candidate, bool isWhitelisted)
+    private void OnBlacklistCandidateChanged(BlacklistCandidateViewModel candidate)
     {
-        if (_updatingWhitelistCandidates)
+        if (_updatingBlacklistCandidates)
         {
             return;
         }
 
-        _whitelistStore.Save(WhitelistCandidates.Where(static item => item.IsWhitelisted).Select(static item => item.ProcessName));
+        _blacklistStore.Save(BlacklistCandidates
+            .Where(static item => item.Mode.HasValue)
+            .Select(item => new BlacklistEntry(item.ProcessName, item.Mode!.Value)));
         _ = RefreshAsync(shouldSort: true);
     }
 
@@ -961,18 +964,18 @@ public sealed partial class DashboardViewModel : ObservableObject
 
         _applicationAliasStore.Save(_applicationAliases);
         ApplySorting();
-        if (IsWhitelistPopupOpen)
+        if (IsBlacklistPopupOpen)
         {
-            RebuildWhitelistCandidates();
-            _pendingWhitelistCandidateRefresh = false;
+            RebuildBlacklistCandidates();
+            _pendingBlacklistCandidateRefresh = false;
         }
         else
         {
-            _pendingWhitelistCandidateRefresh = true;
+            _pendingBlacklistCandidateRefresh = true;
         }
     }
 
-    private string BuildWhitelistDisplayName(string processName, ProcessResourceSnapshot? process)
+    private string BuildBlacklistDisplayName(string processName, ProcessResourceSnapshot? process)
     {
         string? alias = null;
 
@@ -1014,15 +1017,15 @@ public sealed partial class DashboardViewModel : ObservableObject
         detailWindow.Show();
     }
 
-    private void ToggleWhitelistPopup()
+    private void ToggleBlacklistPopup()
     {
-        if (!IsWhitelistPopupOpen && _pendingWhitelistCandidateRefresh)
+        if (!IsBlacklistPopupOpen && _pendingBlacklistCandidateRefresh)
         {
-            RebuildWhitelistCandidates();
-            _pendingWhitelistCandidateRefresh = false;
+            RebuildBlacklistCandidates();
+            _pendingBlacklistCandidateRefresh = false;
         }
 
-        IsWhitelistPopupOpen = !IsWhitelistPopupOpen;
+        IsBlacklistPopupOpen = !IsBlacklistPopupOpen;
     }
 
     private void ToggleCustomMetricPopup()
@@ -1412,7 +1415,7 @@ public sealed partial class DashboardViewModel : ObservableObject
 
         _hasDeferredMainWindowRefresh = false;
         RebuildApplications(shouldSort: true);
-        RebuildWhitelistCandidates();
+        RebuildBlacklistCandidates();
         RaiseDisplayStateChanged();
         if (IsHistoryPageActive)
         {

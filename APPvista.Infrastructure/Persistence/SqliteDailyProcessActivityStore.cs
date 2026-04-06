@@ -116,6 +116,14 @@ ORDER BY foreground_milliseconds DESC, background_milliseconds DESC, process_nam
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
             using var transaction = connection.BeginTransaction();
 
+            using (var deleteCommand = connection.CreateCommand())
+            {
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = "DELETE FROM daily_process_activity WHERE day = $day;";
+                deleteCommand.Parameters.AddWithValue("$day", normalizedDay);
+                deleteCommand.ExecuteNonQuery();
+            }
+
             foreach (var summary in items)
             {
                 using var insertCommand = connection.CreateCommand();
