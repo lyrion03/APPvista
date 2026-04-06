@@ -6,4 +6,10 @@ public partial class HistoryPageView : System.Windows.Controls.UserControl
     {
         InitializeComponent();
     }
+
+    public void ResetScrollPosition()
+    {
+        HistoryContentScrollViewer.ScrollToHome();
+        HistoryContentScrollViewer.UpdateLayout();
+    }
 }

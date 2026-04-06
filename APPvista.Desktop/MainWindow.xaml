@@ -7,9 +7,9 @@
         xmlns:local="clr-namespace:APPvista.Desktop"
         mc:Ignorable="d"
         Title="APPvista"
-        Width="2020"
+        Width="1800"
         Height="960"
-        MinWidth="1440"
+        MinWidth="1408"
         MinHeight="820"
         Icon="Assets/APPvista.ico"
         Background="#EEE6DA"
@@ -218,11 +218,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Padding="28"
-                Background="#15312B"
-                CornerRadius="30">
-            <Grid>
+        <Grid x:Name="DashboardHeaderHost"
+              Grid.Row="0"
+              ClipToBounds="True">
+            <Border x:Name="DashboardHeaderRoot"
+                    Padding="28"
+                    Background="#15312B"
+                    CornerRadius="30">
+                <Border.RenderTransform>
+                    <TranslateTransform Y="0" />
+                </Border.RenderTransform>
+                <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -358,22 +364,83 @@
                             </StackPanel>
                         </Button>
                     </Grid>
-                    <Border Margin="0,20,50,0"
-                            Padding="16"
-                            Background="#25433C"
-                            CornerRadius="22"
-                            MaxWidth="1000">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel>
+                    <Grid Margin="0,12,50,0"
+                          HorizontalAlignment="Left">
+                        <Menu x:Name="OverviewModeMenu"
+                              Opacity="1"
+                              Visibility="Visible"
+                              IsHitTestVisible="True"
+                              VerticalAlignment="Top"
+                              Style="{StaticResource OverviewMenuStyle}">
+                            <Menu.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </Menu.RenderTransform>
+                            <Menu.Resources>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                                <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                            </Menu.Resources>
+                            <MenuItem Header="总览视图"
+                                      Style="{StaticResource OverviewMenuItemStyle}">
+                                <MenuItem Header="数据来源">
+                                    <MenuItem Header="应用总和"
+                                              Command="{Binding SetApplicationSumDataSourceCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsApplicationSumDataSourceMode, Mode=OneWay}" />
+                                    <MenuItem Header="系统总量"
+                                              Command="{Binding SetSystemTotalsDataSourceCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSystemTotalsDataSourceMode, Mode=OneWay}" />
+                                </MenuItem>
+                                <MenuItem Header="网络显示">
+                                    <MenuItem Header="总量"
+                                              Command="{Binding SetNetworkTotalDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsNetworkTotalMode, Mode=OneWay}" />
+                                    <MenuItem Header="区分上下行"
+                                              Command="{Binding SetNetworkSplitDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsNetworkSplitMode, Mode=OneWay}" />
+                                </MenuItem>
+                                <MenuItem Header="IO显示">
+                                    <MenuItem Header="总量"
+                                              Command="{Binding SetIoTotalDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsIoTotalMode, Mode=OneWay}" />
+                                    <MenuItem Header="区分读写"
+                                              Command="{Binding SetIoSplitDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
+                                </MenuItem>
+                                <MenuItem Header="记录范围">
+                                    <MenuItem Header="全部应用"
+                                              Command="{Binding DisableWindowedOnlyRecordingCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsAllApplicationsRecordingMode, Mode=OneWay}" />
+                                    <MenuItem Header="仅窗口应用"
+                                              Command="{Binding EnableWindowedOnlyRecordingCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsWindowedOnlyRecordingMode, Mode=OneWay}" />
+                                </MenuItem>
+                            </MenuItem>
+                        </Menu>
+                        <Border x:Name="DashboardHistoryHeaderContent"
+                                Margin="0,8,0,0"
+                                Padding="16"
+                                Background="#25433C"
+                                CornerRadius="22"
+                                MaxWidth="1000"
+                                VerticalAlignment="Top"
+                                Opacity="0"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </Border.RenderTransform>
+                            <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -694,87 +761,24 @@
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
-                        </StackPanel>
-                    </Border>
-                    <Menu Margin="0,12,0,0">
-                        <Menu.Style>
-                            <Style TargetType="Menu" BasedOn="{StaticResource OverviewMenuStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Menu.Style>
-                        <Menu.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
-                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
-                        </Menu.Resources>
-                        <MenuItem Header="总览视图"
-                                  Style="{StaticResource OverviewMenuItemStyle}">
-                            <MenuItem Header="数据来源">
-                                <MenuItem Header="应用总和"
-                                          Command="{Binding SetApplicationSumDataSourceCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsApplicationSumDataSourceMode, Mode=OneWay}" />
-                                <MenuItem Header="系统总量"
-                                          Command="{Binding SetSystemTotalsDataSourceCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsSystemTotalsDataSourceMode, Mode=OneWay}" />
-                            </MenuItem>
-                            <MenuItem Header="网络显示">
-                                <MenuItem Header="总量"
-                                          Command="{Binding SetNetworkTotalDisplayCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsNetworkTotalMode, Mode=OneWay}" />
-                                <MenuItem Header="区分上下行"
-                                          Command="{Binding SetNetworkSplitDisplayCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsNetworkSplitMode, Mode=OneWay}" />
-                            </MenuItem>
-                            <MenuItem Header="IO显示">
-                                <MenuItem Header="总量"
-                                          Command="{Binding SetIoTotalDisplayCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsIoTotalMode, Mode=OneWay}" />
-                                <MenuItem Header="区分读写"
-                                          Command="{Binding SetIoSplitDisplayCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
-                            </MenuItem>
-                            <MenuItem Header="记录范围">
-                                <MenuItem Header="全部应用"
-                                          Command="{Binding DisableWindowedOnlyRecordingCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsAllApplicationsRecordingMode, Mode=OneWay}" />
-                                <MenuItem Header="仅窗口应用"
-                                          Command="{Binding EnableWindowedOnlyRecordingCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsWindowedOnlyRecordingMode, Mode=OneWay}" />
-                            </MenuItem>
-                        </MenuItem>
-                    </Menu>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1"
-                            HorizontalAlignment="Right">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
+                <StackPanel x:Name="RealtimeOverviewHeaderPanel"
+                            Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            Opacity="1"
+                            Visibility="Visible"
+                            IsHitTestVisible="True">
+                    <StackPanel.RenderTransform>
+                        <TranslateTransform Y="0" />
+                    </StackPanel.RenderTransform>
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right">
-                        <Border Width="420"
+                        <Border x:Name="RealtimeNetworkOverviewCard"
+                                Width="420"
                                 Padding="20,18"
                                 Background="#25433C"
                                 CornerRadius="22">
@@ -968,7 +972,8 @@
                             </Grid>
                         </Border>
 
-                        <Border Width="420"
+                        <Border x:Name="RealtimeIoOverviewCard"
+                                Width="420"
                                 Margin="14,0,0,0"
                                 Padding="20,18"
                                 Background="#25433C"
@@ -1174,22 +1179,19 @@
                     </TextBlock>
                 </StackPanel>
 
-                <Border Grid.Column="1"
+                <Border x:Name="HistoryCalendarCard"
+                        Grid.Column="1"
                         Width="854"
                         Padding="18"
                         Background="#25433C"
                         CornerRadius="24"
-                        HorizontalAlignment="Right">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                        HorizontalAlignment="Right"
+                        Opacity="0"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False">
+                    <Border.RenderTransform>
+                        <TranslateTransform Y="0" />
+                    </Border.RenderTransform>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -1374,46 +1376,46 @@
                         </Grid>
                     </Grid>
                 </Border>
-            </Grid>
-        </Border>
+                </Grid>
+            </Border>
+            <Border x:Name="DashboardHeaderTransitionOverlay"
+                    Panel.ZIndex="10"
+                    Background="Transparent"
+                    ClipToBounds="True"
+                    CornerRadius="30"
+                    IsHitTestVisible="False"
+                    Opacity="0"
+                    Visibility="Collapsed">
+                <Border.RenderTransform>
+                    <TranslateTransform Y="0" />
+                </Border.RenderTransform>
+                <Image x:Name="DashboardHeaderTransitionImage"
+                       Stretch="Fill" />
+            </Border>
+        </Grid>
 
         <Grid Grid.Row="2" />
 
-        <Grid x:Name="RealtimePageRoot" Grid.Row="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="36*"/>
-                <ColumnDefinition Width="457*"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RenderTransform>
-                <TranslateTransform X="0" />
-            </Grid.RenderTransform>
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Opacity" Value="1" />
-                    <Setter Property="IsHitTestVisible" Value="True" />
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Setter Property="Panel.ZIndex" Value="2" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsRealtimePageActive}" Value="False">
-                            <Setter Property="Opacity" Value="0" />
-                            <Setter Property="IsHitTestVisible" Value="False" />
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Setter Property="Panel.ZIndex" Value="0" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsRealtimePageActive}" Value="True">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="IsHitTestVisible" Value="True" />
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Setter Property="Panel.ZIndex" Value="2" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="14" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Grid x:Name="DashboardPageHost"
+              Grid.Row="4"
+              ClipToBounds="True">
+            <Grid x:Name="RealtimePageRoot"
+                  Opacity="1"
+                  IsHitTestVisible="True"
+                  Visibility="Visible"
+                  Panel.ZIndex="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="36*"/>
+                    <ColumnDefinition Width="457*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RenderTransform>
+                    <TranslateTransform Y="0" />
+                </Grid.RenderTransform>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
             <Border Padding="18"
                     Background="#FFFDF9"
@@ -1666,7 +1668,7 @@
                 </Grid>
             </Border>
 
-            <ListBox x:Name="ApplicationsList"
+                <ListBox x:Name="ApplicationsList"
                      Grid.Row="2"
                      Grid.ColumnSpan="2"
                      Background="Transparent"
@@ -1944,36 +1946,19 @@
                         </ItemsControl>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
+                </ListBox>
+            </Grid>
 
-                <Grid x:Name="HistoryPageRoot" Grid.Row="4">
-            <Grid.RenderTransform>
-                <TranslateTransform X="32" />
-            </Grid.RenderTransform>
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Opacity" Value="0" />
-                    <Setter Property="IsHitTestVisible" Value="False" />
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Setter Property="Panel.ZIndex" Value="0" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="True">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="IsHitTestVisible" Value="True" />
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Setter Property="Panel.ZIndex" Value="2" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsHistoryPageActive}" Value="False">
-                            <Setter Property="Opacity" Value="0" />
-                            <Setter Property="IsHitTestVisible" Value="False" />
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Setter Property="Panel.ZIndex" Value="0" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <ContentControl x:Name="HistoryPageHost" />
+            <Grid x:Name="HistoryPageRoot"
+                  Opacity="0"
+                  IsHitTestVisible="False"
+                  Visibility="Collapsed"
+                  Panel.ZIndex="0">
+                <Grid.RenderTransform>
+                    <TranslateTransform Y="0" />
+                </Grid.RenderTransform>
+                <ContentControl x:Name="HistoryPageHost" />
+            </Grid>
         </Grid>
 
         <Border Grid.RowSpan="3"

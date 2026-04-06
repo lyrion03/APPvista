@@ -311,7 +311,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     public string IoSummaryDisplay => BuildIoSummary();
     public string RefreshIntervalDisplay => SelectedRefreshInterval.Label;
     public string SortMenuDisplay => $"排序：{SelectedSortOption}";
-    public string RefreshIntervalMenuDisplay => $"周期：{RefreshIntervalDisplay}";
+    public string RefreshIntervalMenuDisplay => $"刷新周期：{RefreshIntervalDisplay}";
     public int SelectedCustomMetricCount => CustomMetricGroups.SelectMany(static group => group.Options).Count(static option => option.IsSelected);
     public string CustomMetricSelectionSummary =>
         $"已选 {SelectedCustomMetricCount} 项，请选择 {ApplicationCardMetricPreferences.MinimumSelectedMetricCount}-{ApplicationCardMetricPreferences.MaximumSelectedMetricCount} 项";

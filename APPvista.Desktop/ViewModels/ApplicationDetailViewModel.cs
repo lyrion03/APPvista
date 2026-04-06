@@ -1178,14 +1178,14 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         };
         using var overlayLinePaint = new SKPaint
         {
-            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(150),
+            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(105),
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 2.2f
         };
         using var overlayPointPaint = new SKPaint
         {
-            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(165),
+            Color = SKColor.Parse(isNetwork ? "#AA6A00" : "#3C5E8C").WithAlpha(120),
             IsAntialias = true,
             Style = SKPaintStyle.Fill
         };
@@ -1400,12 +1400,16 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         bool compactMode = false,
         SKRect? avoidRect = null)
     {
-        if (value <= 0 || maxValue <= 0)
+        if (maxValue <= 0)
         {
             return null;
         }
 
-        var label = compactMode ? FormatCompactBytes(value) : FormatBytes(value);
+        var label = value <= 0
+            ? "0"
+            : compactMode
+                ? FormatCompactBytes(value)
+                : FormatBytes(value);
         var bounds = new SKRect();
         textPaint.MeasureText(label, ref bounds);
         var paddingX = compactMode ? 4f : 6f;
@@ -1414,7 +1418,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var labelGap = compactMode ? 2f : 4f;
         var labelHeadroom = compactMode ? 18f : 24f;
         var drawableHeight = Math.Max(0f, plotRect.Height - labelHeadroom);
-        var height = (float)(value / maxValue * drawableHeight);
+        var normalizedValue = Math.Max(0d, value);
+        var height = (float)(normalizedValue / maxValue * drawableHeight);
         var centerX = left + width / 2f;
         var labelTop = Math.Max(plotRect.Top + 2, plotRect.Bottom - height - labelHeight - labelGap);
         var rect = CreateLabelRect(centerX, labelWidth, labelHeight, labelTop);
@@ -1478,16 +1483,13 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         }
 
         var overlayMax = values.Max();
-        if (overlayMax <= 0d)
-        {
-            return;
-        }
+        var effectiveOverlayMax = overlayMax > 0d ? overlayMax : 1d;
 
         if (values.Count == 1)
         {
             var singlePointDrawableHeight = Math.Max(0f, plotRect.Height - 8f);
             var centerX = plotRect.MidX;
-            var normalizedHeight = (float)(values[0] / overlayMax * singlePointDrawableHeight);
+            var normalizedHeight = (float)(Math.Max(0d, values[0]) / effectiveOverlayMax * singlePointDrawableHeight);
             var point = new SKPoint(centerX, plotRect.Bottom - normalizedHeight);
             canvas.DrawCircle(point, 3.6f, pointPaint);
             return;
@@ -1500,28 +1502,29 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         for (var i = 0; i < values.Count; i++)
         {
             var centerX = plotRect.Left + i * slotWidth + slotWidth / 2f;
-            var normalizedHeight = (float)(values[i] / overlayMax * drawableHeight);
+            var normalizedHeight = (float)(Math.Max(0d, values[i]) / effectiveOverlayMax * drawableHeight);
             points[i] = new SKPoint(centerX, plotRect.Bottom - normalizedHeight);
         }
 
-        using var path = new SKPath();
-        path.MoveTo(points[0]);
-        for (var i = 1; i < points.Length; i++)
+        if (overlayMax > 0d)
         {
-            path.LineTo(points[i]);
-        }
+            using var path = new SKPath();
+            path.MoveTo(points[0]);
+            for (var i = 1; i < points.Length; i++)
+            {
+                path.LineTo(points[i]);
+            }
 
-        canvas.DrawPath(path, linePaint);
+            canvas.DrawPath(path, linePaint);
+        }
 
         var drawPoints = values.Count <= 14;
-        if (!drawPoints)
+        for (var i = 0; i < points.Length; i++)
         {
-            return;
-        }
-
-        foreach (var point in points)
-        {
-            canvas.DrawCircle(point, 2.6f, pointPaint);
+            if (drawPoints)
+            {
+                canvas.DrawCircle(points[i], 2.6f, pointPaint);
+            }
         }
     }
 
@@ -1542,6 +1545,16 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var overlayMax = values.Max();
         if (overlayMax <= 0d)
         {
+            var zeroBounds = new SKRect();
+            textPaint.MeasureText("0", ref zeroBounds);
+            DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, "0", zeroBounds, 10f, plotRect.Bottom, alignRight: false);
+
+            if (showRightAxis)
+            {
+                var rightX = renderWidth - 8f;
+                DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, "0", zeroBounds, rightX, plotRect.Bottom, alignRight: true);
+            }
+
             return;
         }
 

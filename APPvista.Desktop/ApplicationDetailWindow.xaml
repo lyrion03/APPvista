@@ -4,9 +4,9 @@
         xmlns:services="clr-namespace:APPvista.Desktop.Services"
         Title="APPvista - 应用详情"
         Width="980"
-        Height="1120"
+        Height="1080"
         MinWidth="980"
-        MinHeight="740"
+        MinHeight="520"
         Icon="Assets/APPvista.ico"
         Background="#F3EEE5"
         FontFamily="Microsoft YaHei UI"
@@ -387,21 +387,18 @@
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="2"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <Grid>
-            <StackPanel>
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCurrentDataMode}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
+        <Grid Grid.Row="2"
+              x:Name="DetailContentHost"
+              ClipToBounds="True">
+            <ScrollViewer x:Name="CurrentDataPanel"
+                          Panel.ZIndex="1"
+                          Opacity="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer.RenderTransform>
+                    <TranslateTransform X="0" />
+                </ScrollViewer.RenderTransform>
+                <StackPanel>
                 <Border Padding="0"
                         Background="#FFFDF9"
                         CornerRadius="24">
@@ -748,7 +745,7 @@
                                                    FontSize="12"
                                                    Text="基本性能" />
                                         <TextBlock Margin="0,8,0,0" Text="{Binding CpuDisplay, StringFormat=CPU {0}}" />
-                                        <TextBlock Margin="0,4,0,0" Text="{Binding WorkingSetDisplay, StringFormat=工作集 {0}}" />
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding WorkingSetDisplay, StringFormat=工作集(内存) {0}}" />
                                         <TextBlock Margin="0,4,0,0" Text="{Binding PeakWorkingSetDisplay, StringFormat=工作集峰值 {0}}" />
                                         <TextBlock Margin="0,4,0,0" Text="{Binding PrivateMemoryDisplay, StringFormat=私有提交 {0}}" />
                                         <TextBlock Margin="0,4,0,0" Text="{Binding CommitSizeDisplay, StringFormat=提交大小 {0}}" />
@@ -957,19 +954,20 @@
                         </Grid>
                     </StackPanel>
                 </Border>
-            </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
 
-            <StackPanel>
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsHistoryDataMode}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
+            <ScrollViewer x:Name="HistoryDataPanel"
+                          Panel.ZIndex="0"
+                          Visibility="Collapsed"
+                          Opacity="0"
+                          IsHitTestVisible="False"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer.RenderTransform>
+                    <TranslateTransform X="0" />
+                </ScrollViewer.RenderTransform>
+                <StackPanel>
 
                 <Border Padding="22"
                         Background="#FFFDF9"
@@ -1131,7 +1129,7 @@
                                         <StackPanel>
                                             <TextBlock Foreground="#7B7F74"
                                                        FontSize="12"
-                                                       Text="历史总流量" />
+                                                       Text="总流量" />
                                             <TextBlock Margin="0,8,0,0"
                                                        FontSize="22"
                                                        FontWeight="SemiBold"
@@ -1350,7 +1348,7 @@
                                     <StackPanel>
                                         <TextBlock Foreground="#7B7F74"
                                                    FontSize="12"
-                                                   Text="总使用时长" />
+                                                   Text="总时长" />
                                         <TextBlock Margin="0,8,0,0"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
@@ -1567,8 +1565,8 @@
                         </Grid>
                     </StackPanel>
                 </Border>
-            </StackPanel>
-            </Grid>
-        </ScrollViewer>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </Grid>
 </Window>

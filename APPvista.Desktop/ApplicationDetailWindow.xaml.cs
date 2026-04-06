@@ -13,12 +13,15 @@ namespace APPvista.Desktop;
 public partial class ApplicationDetailWindow : Window
 {
     private const double DetailSwitchOffset = 112d;
+    private const double DetailContentSwitchOffset = 132d;
+    private const double DetailContentSwitchDurationMilliseconds = 280d;
     private const double WindowMargin = 24d;
     private const double HistoryChartScrollHintThreshold = 1d;
     private ScrollViewer? _draggingHistoryChartScrollViewer;
     private System.Windows.Point _historyChartDragStart;
     private double _historyChartDragStartOffset;
     private bool _hasAppliedInitialBounds;
+    private bool? _isHistoryContentVisible;
 
     public static readonly DependencyProperty ShowHistoryChartLeftHintProperty =
         DependencyProperty.Register(
@@ -90,6 +93,7 @@ public partial class ApplicationDetailWindow : Window
         }
 
         UpdateDetailSwitchIndicator(animated: false);
+        UpdateDetailContentState(animated: false);
         UpdateHistoryChartScrollHints();
     }
 
@@ -123,6 +127,7 @@ public partial class ApplicationDetailWindow : Window
         }
 
         UpdateDetailSwitchIndicator(animated: false);
+        UpdateDetailContentState(animated: false);
         UpdateHistoryChartScrollHints();
     }
 
@@ -160,7 +165,11 @@ public partial class ApplicationDetailWindow : Window
         if (e.PropertyName == nameof(ApplicationDetailViewModel.IsCurrentDataMode) ||
             e.PropertyName == nameof(ApplicationDetailViewModel.IsHistoryDataMode))
         {
-            Dispatcher.InvokeAsync(() => UpdateDetailSwitchIndicator(animated: true), DispatcherPriority.Render);
+            Dispatcher.InvokeAsync(() =>
+            {
+                UpdateDetailSwitchIndicator(animated: true);
+                UpdateDetailContentState(animated: true);
+            }, DispatcherPriority.Render);
             return;
         }
 
@@ -223,6 +232,165 @@ public partial class ApplicationDetailWindow : Window
         };
 
         transform.BeginAnimation(TranslateTransform.XProperty, animation, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void UpdateDetailContentState(bool animated)
+    {
+        if (DataContext is not ApplicationDetailViewModel viewModel)
+        {
+            return;
+        }
+
+        var showHistory = viewModel.IsHistoryDataMode;
+        ResetDetailContentScrollPosition(showHistory);
+
+        if (_isHistoryContentVisible is null || !animated)
+        {
+            ApplyDetailContentState(showHistory);
+            _isHistoryContentVisible = showHistory;
+            return;
+        }
+
+        if (_isHistoryContentVisible == showHistory)
+        {
+            return;
+        }
+
+        AnimateDetailContentTransition(showHistory);
+        _isHistoryContentVisible = showHistory;
+    }
+
+    private void ApplyDetailContentState(bool showHistory)
+    {
+        var visiblePanel = showHistory ? HistoryDataPanel : CurrentDataPanel;
+        var hiddenPanel = showHistory ? CurrentDataPanel : HistoryDataPanel;
+
+        StopDetailContentAnimations(CurrentDataPanel);
+        StopDetailContentAnimations(HistoryDataPanel);
+
+        hiddenPanel.Visibility = Visibility.Collapsed;
+        hiddenPanel.Opacity = 0d;
+        hiddenPanel.IsHitTestVisible = false;
+        System.Windows.Controls.Panel.SetZIndex(hiddenPanel, 0);
+        SetPanelOffset(hiddenPanel, 0d);
+
+        visiblePanel.Visibility = Visibility.Visible;
+        visiblePanel.Opacity = 1d;
+        visiblePanel.IsHitTestVisible = true;
+        System.Windows.Controls.Panel.SetZIndex(visiblePanel, 1);
+        SetPanelOffset(visiblePanel, 0d);
+    }
+
+    private void AnimateDetailContentTransition(bool showHistory)
+    {
+        var incomingPanel = showHistory ? HistoryDataPanel : CurrentDataPanel;
+        var outgoingPanel = showHistory ? CurrentDataPanel : HistoryDataPanel;
+        var direction = showHistory ? 1d : -1d;
+        var offset = ResolveDetailContentOffset();
+        var frozenHostMinWidth = Math.Max(0d, DetailContentHost.ActualWidth);
+        var frozenHostMinHeight = Math.Max(CurrentDataPanel.ActualHeight, HistoryDataPanel.ActualHeight);
+
+        StopDetailContentAnimations(incomingPanel);
+        StopDetailContentAnimations(outgoingPanel);
+        FreezeDetailContentHost(frozenHostMinWidth, frozenHostMinHeight);
+
+        incomingPanel.Visibility = Visibility.Visible;
+        incomingPanel.IsHitTestVisible = false;
+        incomingPanel.Opacity = 0d;
+        System.Windows.Controls.Panel.SetZIndex(incomingPanel, 2);
+        SetPanelOffset(incomingPanel, direction * offset);
+
+        outgoingPanel.Visibility = Visibility.Visible;
+        outgoingPanel.IsHitTestVisible = false;
+        outgoingPanel.Opacity = 1d;
+        System.Windows.Controls.Panel.SetZIndex(outgoingPanel, 1);
+        SetPanelOffset(outgoingPanel, 0d);
+
+        var duration = TimeSpan.FromMilliseconds(DetailContentSwitchDurationMilliseconds);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var incomingOffsetAnimation = new DoubleAnimation(direction * offset, 0d, duration) { EasingFunction = easing };
+        var outgoingOffsetAnimation = new DoubleAnimation(0d, -direction * offset, duration) { EasingFunction = easing };
+        var incomingOpacityAnimation = new DoubleAnimation(0d, 1d, duration) { EasingFunction = easing };
+        var outgoingOpacityAnimation = new DoubleAnimation(1d, 0d, duration) { EasingFunction = easing };
+
+        outgoingOpacityAnimation.Completed += (_, _) =>
+        {
+            outgoingPanel.Visibility = Visibility.Collapsed;
+            outgoingPanel.Opacity = 0d;
+            outgoingPanel.IsHitTestVisible = false;
+            System.Windows.Controls.Panel.SetZIndex(outgoingPanel, 0);
+            SetPanelOffset(outgoingPanel, 0d);
+
+            incomingPanel.Visibility = Visibility.Visible;
+            incomingPanel.Opacity = 1d;
+            incomingPanel.IsHitTestVisible = true;
+            System.Windows.Controls.Panel.SetZIndex(incomingPanel, 1);
+            SetPanelOffset(incomingPanel, 0d);
+            ReleaseDetailContentHostFreeze();
+        };
+
+        GetPanelTransform(incomingPanel).BeginAnimation(TranslateTransform.XProperty, incomingOffsetAnimation, HandoffBehavior.SnapshotAndReplace);
+        GetPanelTransform(outgoingPanel).BeginAnimation(TranslateTransform.XProperty, outgoingOffsetAnimation, HandoffBehavior.SnapshotAndReplace);
+        incomingPanel.BeginAnimation(OpacityProperty, incomingOpacityAnimation, HandoffBehavior.SnapshotAndReplace);
+        outgoingPanel.BeginAnimation(OpacityProperty, outgoingOpacityAnimation, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static void StopDetailContentAnimations(FrameworkElement panel)
+    {
+        panel.BeginAnimation(OpacityProperty, null);
+        GetPanelTransform(panel).BeginAnimation(TranslateTransform.XProperty, null);
+    }
+
+    private static TranslateTransform GetPanelTransform(UIElement panel)
+    {
+        if (panel.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            panel.RenderTransform = transform;
+        }
+
+        return transform;
+    }
+
+    private static void SetPanelOffset(UIElement panel, double offset)
+    {
+        GetPanelTransform(panel).X = offset;
+    }
+
+    private double ResolveDetailContentOffset()
+    {
+        var hostWidth = DetailContentHost.ActualWidth;
+        return Math.Max(DetailContentSwitchOffset, hostWidth * 0.12d);
+    }
+
+    private void FreezeDetailContentHost(double minWidth, double minHeight)
+    {
+        if (minWidth > 0d)
+        {
+            DetailContentHost.MinWidth = minWidth;
+        }
+
+        if (minHeight > 0d)
+        {
+            DetailContentHost.MinHeight = minHeight;
+        }
+    }
+
+    private void ReleaseDetailContentHostFreeze()
+    {
+        DetailContentHost.MinWidth = 0d;
+        DetailContentHost.MinHeight = 0d;
+    }
+
+    private void ResetDetailContentScrollPosition(bool showHistory)
+    {
+        if (!showHistory)
+        {
+            return;
+        }
+
+        HistoryDataPanel.ScrollToHome();
+        HistoryDataPanel.UpdateLayout();
     }
 
     private void HistoryChartScrollViewer_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
