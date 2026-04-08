@@ -1,6 +1,8 @@
 ﻿using APPvista.Application.Abstractions;
 using APPvista.Domain.Entities;
 
+using System.Diagnostics;
+
 namespace APPvista.Infrastructure.Services;
 
 public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService, IDisposable
@@ -621,7 +623,8 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             return;
         }
 
-        if (_removedSummaryNames.Count > 0)
+        var removedCount = _removedSummaryNames.Count;
+        if (removedCount > 0)
         {
             _dailyProcessActivityStore.Delete(_currentDay, _removedSummaryNames);
             _removedSummaryNames.Clear();
@@ -636,10 +639,12 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 .Cast<DailyProcessActivitySummary>()
                 .ToList();
 
+        var persistStarted = Stopwatch.GetTimestamp();
         if (summariesToSave.Count > 0)
         {
             _dailyProcessActivityStore.Save(_currentDay, summariesToSave);
         }
+        var persistDurationMs = Stopwatch.GetElapsedTime(persistStarted).TotalMilliseconds;
 
         if (fullSync)
         {
@@ -654,6 +659,8 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
         }
 
         _hasDirtySummaries = _dirtySummaryNames.Count > 0 || _removedSummaryNames.Count > 0;
+        StartupPerformanceTrace.MarkRuntime(
+            $"PersistDailyActivity mode={(fullSync ? "full" : "dirty")} day={_currentDay:yyyy-MM-dd} saved={summariesToSave.Count} removed={removedCount} duration_ms={persistDurationMs:F1} remaining_dirty={_dirtySummaryNames.Count}");
     }
 
     private void MarkDirty(string processName)

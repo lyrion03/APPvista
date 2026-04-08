@@ -73,6 +73,8 @@ public sealed class ApplicationCardViewModel : ObservableObject, IDisposable
     public double CpuUsagePercent => _snapshot.CpuUsagePercent;
     public long WorkingSetBytes => _snapshot.WorkingSetBytes;
     public long CurrentIoBytesPerSecond => _snapshot.RealtimeIoReadBytesPerSecond + _snapshot.RealtimeIoWriteBytesPerSecond;
+    public long DailyIoBytes => _snapshot.DailyIoReadBytes + _snapshot.DailyIoWriteBytes;
+    public int ThreadCount => _snapshot.ThreadCount;
     public double ThreadPressure => _snapshot.AverageThreadCount <= 0 ? _snapshot.ThreadCount : _snapshot.PeakThreadCount / _snapshot.AverageThreadCount;
     public long ForegroundMilliseconds => _snapshot.DailyForegroundMilliseconds;
 
@@ -210,6 +212,8 @@ public sealed class ApplicationCardViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(CpuUsagePercent));
         RaisePropertyChanged(nameof(WorkingSetBytes));
         RaisePropertyChanged(nameof(CurrentIoBytesPerSecond));
+        RaisePropertyChanged(nameof(DailyIoBytes));
+        RaisePropertyChanged(nameof(ThreadCount));
         RaisePropertyChanged(nameof(ThreadPressure));
         RaisePropertyChanged(nameof(ForegroundMilliseconds));
     }
@@ -241,6 +245,7 @@ public sealed class ApplicationCardViewModel : ObservableObject, IDisposable
             ApplicationCardMetricPreferences.CpuId => "CPU",
             ApplicationCardMetricPreferences.RealtimeTrafficId => "实时网速",
             ApplicationCardMetricPreferences.RealtimeIoId => "当前 I/O",
+            ApplicationCardMetricPreferences.ThreadCountId => "线程数",
             ApplicationCardMetricPreferences.ThreadPressureId => "线程峰均比",
             ApplicationCardMetricPreferences.ProcessCountId => "进程数",
             ApplicationCardMetricPreferences.PeakWorkingSetId => "工作集峰值",
@@ -258,6 +263,7 @@ public sealed class ApplicationCardViewModel : ObservableObject, IDisposable
             ApplicationCardMetricPreferences.CpuId => Snapshot.CpuDisplay,
             ApplicationCardMetricPreferences.RealtimeTrafficId => Snapshot.RealtimeTrafficDisplay,
             ApplicationCardMetricPreferences.RealtimeIoId => Snapshot.RealtimeIoDisplay,
+            ApplicationCardMetricPreferences.ThreadCountId => ThreadCount.ToString(CultureInfo.InvariantCulture),
             ApplicationCardMetricPreferences.ThreadPressureId => ThreadPressure.ToString("F2", CultureInfo.InvariantCulture) + "x",
             ApplicationCardMetricPreferences.ProcessCountId => Snapshot.ProcessCount.ToString(CultureInfo.InvariantCulture),
             ApplicationCardMetricPreferences.PeakWorkingSetId => Snapshot.PeakWorkingSetDisplay,

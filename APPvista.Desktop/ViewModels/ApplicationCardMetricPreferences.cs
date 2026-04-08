@@ -13,6 +13,7 @@ public sealed class ApplicationCardMetricPreferences : ObservableObject
     public const string CpuId = "cpu";
     public const string RealtimeTrafficId = "realtime_traffic";
     public const string RealtimeIoId = "realtime_io";
+    public const string ThreadCountId = "thread_count";
     public const string ThreadPressureId = "thread_pressure";
     public const string ProcessCountId = "process_count";
     public const string PeakWorkingSetId = "peak_working_set";
@@ -23,11 +24,12 @@ public sealed class ApplicationCardMetricPreferences : ObservableObject
         new(ProcessCountId, "进程数", "使用时段"),
         new(CpuId, "CPU", "资源占用"),
         new(WorkingSetId, "内存", "资源占用"),
-        new(PeakWorkingSetId, "工作集峰值", "资源占用"),
+        new(PeakWorkingSetId, "内存峰值", "资源占用"),
         new(DailyTrafficId, "总流量", "网络"),
         new(RealtimeTrafficId, "实时网速", "网络"),
         new(DailyIoTotalId, "I/O 总量", "应用 I/O"),
-        new(RealtimeIoId, "当前 I/O", "应用 I/O"),
+        new(RealtimeIoId, "实时 I/O", "应用 I/O"),
+        new(ThreadCountId, "线程数", "线程"),
         new(ThreadPressureId, "线程峰均比", "线程")
     ];
 

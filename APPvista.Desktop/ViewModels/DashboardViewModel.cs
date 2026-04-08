@@ -20,7 +20,9 @@ public sealed partial class DashboardViewModel : ObservableObject
     private const string SortByTraffic = "总流量";
     private const string SortByCpu = "CPU";
     private const string SortByMemory = "内存";
+    private const string SortByRealtimeIo = "实时 I/O";
     private const string SortByIo = "I/O总量";
+    private const string SortByThreadCount = "线程数";
     private const string SortByThread = "线程峰均比";
     private const string SortByFocus = "前台时长";
     private const int OverviewChartCapacity = 32;
@@ -86,6 +88,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     private DashboardSnapshot _snapshot;
     private SystemOverviewSnapshot _systemOverviewSnapshot;
     private bool _isBlacklistPopupOpen;
+    private bool _isSortPopupOpen;
     private bool _isCustomMetricPopupOpen;
     private bool _isWindowedOnlyRecordingConfirmOpen;
     private bool _updatingBlacklistCandidates;
@@ -149,7 +152,9 @@ public sealed partial class DashboardViewModel : ObservableObject
             SortByTraffic,
             SortByCpu,
             SortByMemory,
+            SortByRealtimeIo,
             SortByIo,
+            SortByThreadCount,
             SortByThread
         ];
 
@@ -164,6 +169,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         _applicationCardMetricPreferences.PropertyChanged += OnApplicationCardMetricPreferencesPropertyChanged;
 
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(shouldSort: true));
+        ToggleSortPopupCommand = new RelayCommand(ToggleSortPopup);
         ToggleBlacklistPopupCommand = new RelayCommand(ToggleBlacklistPopup);
         ToggleCustomMetricPopupCommand = new RelayCommand(ToggleCustomMetricPopup);
         SaveCustomMetricSelectionCommand = new RelayCommand(SaveCustomMetricSelection);
@@ -175,7 +181,9 @@ public sealed partial class DashboardViewModel : ObservableObject
         SetSortByTrafficCommand = new RelayCommand(() => SelectedSortOption = SortByTraffic);
         SetSortByCpuCommand = new RelayCommand(() => SelectedSortOption = SortByCpu);
         SetSortByMemoryCommand = new RelayCommand(() => SelectedSortOption = SortByMemory);
+        SetSortByRealtimeIoCommand = new RelayCommand(() => SelectedSortOption = SortByRealtimeIo);
         SetSortByIoCommand = new RelayCommand(() => SelectedSortOption = SortByIo);
+        SetSortByThreadCountCommand = new RelayCommand(() => SelectedSortOption = SortByThreadCount);
         SetSortByThreadCommand = new RelayCommand(() => SelectedSortOption = SortByThread);
         SetRefreshInterval1SecondCommand = new RelayCommand(() => SelectedRefreshInterval = RefreshEvery1Second);
         SetRefreshInterval2SecondsCommand = new RelayCommand(() => SelectedRefreshInterval = RefreshEvery2Seconds);
@@ -247,6 +255,12 @@ public sealed partial class DashboardViewModel : ObservableObject
         set => SetProperty(ref _isCustomMetricPopupOpen, value);
     }
 
+    public bool IsSortPopupOpen
+    {
+        get => _isSortPopupOpen;
+        set => SetProperty(ref _isSortPopupOpen, value);
+    }
+
     public bool IsRefreshing
     {
         get => _isRefreshing;
@@ -269,6 +283,7 @@ public sealed partial class DashboardViewModel : ObservableObject
                 RaiseSortModeProperties();
                 RaisePropertyChanged(nameof(SortMenuDisplay));
                 ApplySorting();
+                IsSortPopupOpen = false;
             }
         }
     }
@@ -338,7 +353,9 @@ public sealed partial class DashboardViewModel : ObservableObject
     public bool IsSortByTrafficMode => SelectedSortOption == SortByTraffic;
     public bool IsSortByCpuMode => SelectedSortOption == SortByCpu;
     public bool IsSortByMemoryMode => SelectedSortOption == SortByMemory;
+    public bool IsSortByRealtimeIoMode => SelectedSortOption == SortByRealtimeIo;
     public bool IsSortByIoMode => SelectedSortOption == SortByIo;
+    public bool IsSortByThreadCountMode => SelectedSortOption == SortByThreadCount;
     public bool IsSortByThreadMode => SelectedSortOption == SortByThread;
     public bool IsRefreshInterval1SecondMode => SelectedRefreshInterval.Equals(RefreshEvery1Second);
     public bool IsRefreshInterval2SecondsMode => SelectedRefreshInterval.Equals(RefreshEvery2Seconds);
@@ -363,6 +380,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     public bool IsForegroundBackgroundVisibleMode => _foregroundBackgroundDisplayMode == ForegroundBackgroundDisplayMode.Visible;
 
     public ICommand RefreshCommand { get; }
+    public ICommand ToggleSortPopupCommand { get; }
     public ICommand ToggleCustomMetricPopupCommand { get; }
     public ICommand SaveCustomMetricSelectionCommand { get; }
     public ICommand ResetCustomMetricSelectionCommand { get; }
@@ -374,7 +392,9 @@ public sealed partial class DashboardViewModel : ObservableObject
     public ICommand SetSortByTrafficCommand { get; }
     public ICommand SetSortByCpuCommand { get; }
     public ICommand SetSortByMemoryCommand { get; }
+    public ICommand SetSortByRealtimeIoCommand { get; }
     public ICommand SetSortByIoCommand { get; }
+    public ICommand SetSortByThreadCountCommand { get; }
     public ICommand SetSortByThreadCommand { get; }
     public ICommand SetRefreshInterval1SecondCommand { get; }
     public ICommand SetRefreshInterval2SecondsCommand { get; }
@@ -727,7 +747,9 @@ public sealed partial class DashboardViewModel : ObservableObject
             SortByTraffic => applications.OrderByDescending(static item => item.TodayTrafficBytes),
             SortByCpu => applications.OrderByDescending(static item => item.CpuUsagePercent),
             SortByMemory => applications.OrderByDescending(static item => item.WorkingSetBytes),
-            SortByIo => applications.OrderByDescending(static item => item.CurrentIoBytesPerSecond),
+            SortByRealtimeIo => applications.OrderByDescending(static item => item.CurrentIoBytesPerSecond),
+            SortByIo => applications.OrderByDescending(static item => item.DailyIoBytes),
+            SortByThreadCount => applications.OrderByDescending(static item => item.ThreadCount),
             SortByThread => applications.OrderByDescending(static item => item.ThreadPressure),
             _ => applications.OrderByDescending(static item => item.ForegroundMilliseconds)
         };
@@ -1028,6 +1050,11 @@ public sealed partial class DashboardViewModel : ObservableObject
         IsBlacklistPopupOpen = !IsBlacklistPopupOpen;
     }
 
+    private void ToggleSortPopup()
+    {
+        IsSortPopupOpen = !IsSortPopupOpen;
+    }
+
     private void ToggleCustomMetricPopup()
     {
         if (!IsCustomMetricPopupOpen)
@@ -1125,7 +1152,9 @@ public sealed partial class DashboardViewModel : ObservableObject
         RaisePropertyChanged(nameof(IsSortByTrafficMode));
         RaisePropertyChanged(nameof(IsSortByCpuMode));
         RaisePropertyChanged(nameof(IsSortByMemoryMode));
+        RaisePropertyChanged(nameof(IsSortByRealtimeIoMode));
         RaisePropertyChanged(nameof(IsSortByIoMode));
+        RaisePropertyChanged(nameof(IsSortByThreadCountMode));
         RaisePropertyChanged(nameof(IsSortByThreadMode));
     }
 

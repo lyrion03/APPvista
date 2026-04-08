@@ -151,7 +151,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="12"
+                                CornerRadius="18"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="Center"
@@ -1434,53 +1434,154 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Menu Grid.Column="0"
-                          VerticalAlignment="Center"
-                          Style="{StaticResource OverviewMenuStyle}">
-                        <Menu.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
-                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
-                        </Menu.Resources>
-                        <MenuItem Header="{Binding SortMenuDisplay}"
-                                  Style="{StaticResource OverviewMenuItemStyle}">
-                            <MenuItem Header="名称"
-                                      Command="{Binding SetSortByNameCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByNameMode, Mode=OneWay}" />
-                            <MenuItem Header="前台时长"
-                                      Command="{Binding SetSortByFocusCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByFocusMode, Mode=OneWay}" />
-                            <MenuItem Header="当前网速"
-                                      Command="{Binding SetSortByNetworkCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByNetworkMode, Mode=OneWay}" />
-                            <MenuItem Header="总流量"
-                                      Command="{Binding SetSortByTrafficCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByTrafficMode, Mode=OneWay}" />
-                            <MenuItem Header="CPU"
-                                      Command="{Binding SetSortByCpuCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByCpuMode, Mode=OneWay}" />
-                            <MenuItem Header="内存"
-                                      Command="{Binding SetSortByMemoryCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByMemoryMode, Mode=OneWay}" />
-                            <MenuItem Header="I/O总量"
-                                      Command="{Binding SetSortByIoCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByIoMode, Mode=OneWay}" />
-                            <MenuItem Header="线程峰均比"
-                                      Command="{Binding SetSortByThreadCommand}"
-                                      IsCheckable="True"
-                                      IsChecked="{Binding IsSortByThreadMode, Mode=OneWay}" />
-                        </MenuItem>
-                    </Menu>
+                    <Grid Grid.Column="0">
+                        <Button x:Name="SortButton"
+                                Style="{StaticResource OverviewActionButtonStyle}"
+                                Command="{Binding ToggleSortPopupCommand}"
+                                Content="{Binding SortMenuDisplay}"
+                                Foreground="#FFF7EC" />
+
+                        <Popup PlacementTarget="{Binding ElementName=SortButton}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               IsOpen="{Binding IsSortPopupOpen, Mode=TwoWay}">
+                            <Border Width="560"
+                                    Margin="0,8,0,0"
+                                    Padding="18"
+                                    Background="#25433C"
+                                    CornerRadius="20">
+                                <Border.Resources>
+                                    <Style x:Key="SortPopupButtonStyle" TargetType="Button">
+                                        <Setter Property="Padding" Value="10,8" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                        <Setter Property="Foreground" Value="#EAF4ED" />
+                                        <Setter Property="FontWeight" Value="Normal" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="Background" Value="#25433C" />
+                                        <Setter Property="Margin" Value="0,0,0,0" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="RootBorder"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="0">
+                                                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                          VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="Tag" Value="True">
+                                                            <Setter TargetName="RootBorder" Property="Background" Value="#3E6B5F" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="RootBorder" Property="Background" Value="#274940" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="Tag" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Resources>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <Border Padding="10,6"
+                                                Background="#31574D"
+                                                CornerRadius="10">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="使用情况" />
+                                        </Border>
+                                        <Button Margin="0,6,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByFocusMode}"
+                                                Command="{Binding SetSortByFocusCommand}"
+                                                Content="前台时长" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByTrafficMode}"
+                                                Command="{Binding SetSortByTrafficCommand}"
+                                                Content="总流量" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByIoMode}"
+                                                Command="{Binding SetSortByIoCommand}"
+                                                Content="I/O总量" />
+                                        <Border Padding="10,6"
+                                                Background="#31574D"
+                                                CornerRadius="10">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="基础信息" />
+                                        </Border>
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByNameMode}"
+                                                Command="{Binding SetSortByNameCommand}"
+                                                Content="名称" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <Border Padding="10,6"
+                                                Background="#31574D"
+                                                CornerRadius="10">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="实时负载" />
+                                        </Border>
+                                        <Button Margin="0,6,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByNetworkMode}"
+                                                Command="{Binding SetSortByNetworkCommand}"
+                                                Content="当前网速" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByRealtimeIoMode}"
+                                                Command="{Binding SetSortByRealtimeIoCommand}"
+                                                Content="实时 I/O" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByCpuMode}"
+                                                Command="{Binding SetSortByCpuCommand}"
+                                                Content="CPU" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByMemoryMode}"
+                                                Command="{Binding SetSortByMemoryCommand}"
+                                                Content="内存" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByThreadCountMode}"
+                                                Command="{Binding SetSortByThreadCountCommand}"
+                                                Content="线程数" />
+                                        <Button Margin="0,0,0,0"
+                                                Style="{StaticResource SortPopupButtonStyle}"
+                                                Tag="{Binding IsSortByThreadMode}"
+                                                Command="{Binding SetSortByThreadCommand}"
+                                                Content="线程峰均比" />
+                                    </StackPanel>
+
+                                </Grid>
+                            </Border>
+                        </Popup>
+                    </Grid>
 
                     <Menu Grid.Column="2"
                           VerticalAlignment="Center"
@@ -1538,7 +1639,7 @@
                                StaysOpen="False"
                                AllowsTransparency="True"
                                IsOpen="{Binding IsCustomMetricPopupOpen, Mode=TwoWay}">
-                            <Border Width="360"
+                            <Border Width="240"
                                     Margin="0,8,0,0"
                                     Padding="18"
                                     Background="#FFFDF9"
@@ -1564,7 +1665,7 @@
                                                Text="{Binding CustomMetricSelectionSummary}" />
                                     <ScrollViewer Grid.Row="2"
                                                   Margin="0,14,0,0"
-                                                  MaxHeight="360"
+                                                  MaxHeight="445"
                                                   VerticalScrollBarVisibility="Auto">
                                         <ItemsControl ItemsSource="{Binding CustomMetricGroups}">
                                             <ItemsControl.ItemTemplate>
