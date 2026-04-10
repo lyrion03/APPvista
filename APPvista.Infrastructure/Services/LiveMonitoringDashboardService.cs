@@ -87,12 +87,26 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
             var incompleteProcessNames = new HashSet<string>(captureBatch.IncompleteProcessNames, StringComparer.OrdinalIgnoreCase);
             var allProcesses = captureBatch.Processes;
             UpdateDailyActivity(allProcesses, nowUtc, today, ignoredProcesses);
-            var includedLiveProcessSamples = allProcesses.Where(process => ShouldIncludeForRecording(process, ignoredProcesses)).ToList();
+            var includedLiveProcessSamples = new List<ProcessResourceSnapshot>(allProcesses.Count);
+            var liveProcesses = new List<ProcessResourceSnapshot>(allProcesses.Count);
+            var liveProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var liveProcesses = includedLiveProcessSamples
-                .Where(item => !hiddenProcesses.Contains(item.ProcessName))
-                .Select(item => AttachDailyActivity(item, bandwidthByProcess))
-                .ToList();
+            foreach (var process in allProcesses)
+            {
+                if (!ShouldIncludeForRecording(process, ignoredProcesses))
+                {
+                    continue;
+                }
+
+                includedLiveProcessSamples.Add(process);
+                if (hiddenProcesses.Contains(process.ProcessName))
+                {
+                    continue;
+                }
+
+                liveProcesses.Add(AttachDailyActivity(process, bandwidthByProcess));
+                liveProcessNames.Add(process.ProcessName);
+            }
 
             foreach (var processName in incompleteProcessNames)
             {
@@ -104,26 +118,61 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 if (_lastLiveSnapshots.TryGetValue(processName, out var lastLiveSnapshot))
                 {
                     liveProcesses.Add(lastLiveSnapshot);
+                    liveProcessNames.Add(processName);
                 }
             }
 
             UpdateLiveSnapshotCache(liveProcesses);
 
-            var closedProcesses = _dailySummaries.Values
-                .Where(summary => !hiddenProcesses.Contains(summary.ProcessName))
-                .Where(summary => !_windowedOnlyRecording || summary.HasMainWindow)
-                .Where(summary => !incompleteProcessNames.Contains(summary.ProcessName))
-                .Where(summary => liveProcesses.All(item => !string.Equals(item.ProcessName, summary.ProcessName, StringComparison.OrdinalIgnoreCase)))
-                .Where(summary =>
+            var closedProcesses = new List<ProcessResourceSnapshot>();
+            long totalDownloadBytes = 0;
+            long totalUploadBytes = 0;
+            long totalIoReadBytes = 0;
+            long totalIoWriteBytes = 0;
+            var trackedProcessCount = 0;
+
+            foreach (var summary in _dailySummaries.Values)
+            {
+                if (ignoredProcesses.Contains(summary.ProcessName))
+                {
+                    continue;
+                }
+
+                if (_windowedOnlyRecording && !summary.HasMainWindow)
+                {
+                    continue;
+                }
+
+                totalDownloadBytes += summary.DownloadBytes;
+                totalUploadBytes += summary.UploadBytes;
+                totalIoReadBytes += summary.IoReadBytes;
+                totalIoWriteBytes += summary.IoWriteBytes;
+
+                var hasActivity =
                     summary.ForegroundMilliseconds > 0 ||
                     summary.BackgroundMilliseconds > 0 ||
                     summary.DownloadBytes > 0 ||
                     summary.UploadBytes > 0 ||
                     summary.IoReadBytes > 0 ||
                     summary.IoWriteBytes > 0 ||
-                    summary.ThreadSamples > 0)
-                .Select(summary => CreateInactiveProcessSnapshot(summary, bandwidthByProcess, nowUtc))
-                .ToList();
+                    summary.ThreadSamples > 0;
+
+                if (!hasActivity)
+                {
+                    continue;
+                }
+
+                trackedProcessCount++;
+
+                if (hiddenProcesses.Contains(summary.ProcessName) ||
+                    incompleteProcessNames.Contains(summary.ProcessName) ||
+                    liveProcessNames.Contains(summary.ProcessName))
+                {
+                    continue;
+                }
+
+                closedProcesses.Add(CreateInactiveProcessSnapshot(summary, bandwidthByProcess, nowUtc));
+            }
 
             var topProcesses = liveProcesses
                 .Concat(closedProcesses)
@@ -136,24 +185,6 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
                 .Take(75)
                 .ToList();
 
-            var trackedProcessCount = _dailySummaries.Count(summary =>
-                !ignoredProcesses.Contains(summary.Key) &&
-                (!_windowedOnlyRecording || summary.Value.HasMainWindow) &&
-                (summary.Value.ForegroundMilliseconds > 0 ||
-                 summary.Value.BackgroundMilliseconds > 0 ||
-                 summary.Value.DownloadBytes > 0 ||
-                 summary.Value.UploadBytes > 0 ||
-                 summary.Value.IoReadBytes > 0 ||
-                 summary.Value.IoWriteBytes > 0 ||
-                 summary.Value.ThreadSamples > 0));
-            var includedSummaries = _dailySummaries.Values
-                .Where(summary => !ignoredProcesses.Contains(summary.ProcessName))
-                .Where(summary => !_windowedOnlyRecording || summary.HasMainWindow)
-                .ToList();
-            var totalDownloadBytes = includedSummaries.Sum(item => item.DownloadBytes);
-            var totalUploadBytes = includedSummaries.Sum(item => item.UploadBytes);
-            var totalIoReadBytes = includedSummaries.Sum(item => item.IoReadBytes);
-            var totalIoWriteBytes = includedSummaries.Sum(item => item.IoWriteBytes);
             var realtimeDownloadBytesPerSecond = bandwidthByProcess.Values.Sum(item => item.DownloadBytesPerSecond);
             var realtimeUploadBytesPerSecond = bandwidthByProcess.Values.Sum(item => item.UploadBytesPerSecond);
             var realtimeIoReadBytesPerSecond = includedLiveProcessSamples.Sum(item => item.RealtimeIoReadBytesPerSecond);
@@ -398,10 +429,11 @@ public sealed class LiveMonitoringDashboardService : IMonitoringDashboardService
     private void UpdateLiveSnapshotCache(IReadOnlyCollection<ProcessResourceSnapshot> liveProcesses)
     {
         var nowUtc = DateTime.UtcNow;
-        var liveNames = new HashSet<string>(liveProcesses.Select(item => item.ProcessName), StringComparer.OrdinalIgnoreCase);
+        var liveNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var process in liveProcesses)
         {
+            liveNames.Add(process.ProcessName);
             _lastLiveSnapshots[process.ProcessName] = process;
             _consecutiveMissCounts[process.ProcessName] = 0;
             _lastSeenLiveTimesUtc[process.ProcessName] = nowUtc;

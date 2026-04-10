@@ -219,9 +219,6 @@ public partial class App : System.Windows.Application
 
         releasedViewModel?.ReleaseDetachedUiState();
         MainWindow = null;
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
         process.Refresh();
         StartupPerformanceTrace.Mark(
             $"Tray release memory | managed_before={managedBefore / 1024d / 1024d:F1}MB managed_after={GC.GetTotalMemory(forceFullCollection: false) / 1024d / 1024d:F1}MB private_before={privateBefore / 1024d / 1024d:F1}MB private_after={process.PrivateMemorySize64 / 1024d / 1024d:F1}MB ws_before={workingSetBefore / 1024d / 1024d:F1}MB ws_after={process.WorkingSet64 / 1024d / 1024d:F1}MB");

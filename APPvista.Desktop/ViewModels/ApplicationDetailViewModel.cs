@@ -53,6 +53,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private List<DailyProcessActivitySummary> _historyDailyRecords = [];
     private DateOnly _historyDisplayedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateOnly _historySelectedDate = DateOnly.FromDateTime(DateTime.Today);
+    private (HistoryAnalysisDimension TargetDimension, DateOnly RangeStart, DateOnly RangeEnd)? _pendingHistorySelectionRange;
     private bool _isHistoryDatePickerOpen;
 
     private ImageSource? _networkChartSource;
@@ -532,10 +533,23 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         {
             _historySelectedDate = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
         }
+        else if (dimension == HistoryAnalysisDimension.Week && previousDimension == HistoryAnalysisDimension.Month)
+        {
+            var pendingRange = ResolveHistoryRange(previousDimension, _historySelectedDate);
+            _pendingHistorySelectionRange = (dimension, pendingRange.Start, pendingRange.End);
+            _historySelectedDate = ResolveWeekHistorySelection(previousDimension, _historySelectedDate);
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
         else if (dimension == HistoryAnalysisDimension.Day)
         {
+            var pendingRange = ResolveHistoryRange(previousDimension, _historySelectedDate);
+            _pendingHistorySelectionRange = (dimension, pendingRange.Start, pendingRange.End);
             _historySelectedDate = ResolveDayHistorySelection(previousDimension, _historySelectedDate);
             _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
+        else
+        {
+            _pendingHistorySelectionRange = null;
         }
 
         ApplyHistorySelection();
@@ -567,15 +581,33 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private void ShowPreviousHistoryMonth()
     {
         _historyDisplayedMonth = _historyDisplayedMonth.AddMonths(-1);
-        RefreshHistoryCalendar();
+        if (_selectedHistoryDimension == HistoryAnalysisDimension.Month)
+        {
+            _historySelectedDate = _historyDisplayedMonth;
+            ApplyHistorySelection();
+        }
+        else
+        {
+            RefreshHistoryCalendar();
+        }
         RaisePropertyChanged(nameof(HistoryCalendarMonthDisplay));
+        RaisePropertyChanged(nameof(HistorySelectionDisplay));
     }
 
     private void ShowNextHistoryMonth()
     {
         _historyDisplayedMonth = _historyDisplayedMonth.AddMonths(1);
-        RefreshHistoryCalendar();
+        if (_selectedHistoryDimension == HistoryAnalysisDimension.Month)
+        {
+            _historySelectedDate = _historyDisplayedMonth;
+            ApplyHistorySelection();
+        }
+        else
+        {
+            RefreshHistoryCalendar();
+        }
         RaisePropertyChanged(nameof(HistoryCalendarMonthDisplay));
+        RaisePropertyChanged(nameof(HistorySelectionDisplay));
     }
 
     private void LoadHistorySummary()
@@ -607,6 +639,27 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         _allHistoryDailyRecords = records
             .OrderBy(record => record.Day, StringComparer.Ordinal)
             .ToList();
+        if (_pendingHistorySelectionRange is { } pendingRange && _selectedHistoryDimension == pendingRange.TargetDimension)
+        {
+            var resolvedDate = pendingRange.TargetDimension switch
+            {
+                HistoryAnalysisDimension.Week => GetWeekStart(
+                    ResolveEarliestHistoryDate(_allHistoryDailyRecords, pendingRange.RangeStart, pendingRange.RangeEnd)
+                    ?? pendingRange.RangeStart),
+                HistoryAnalysisDimension.Day => ResolveEarliestHistoryDate(_allHistoryDailyRecords, pendingRange.RangeStart, pendingRange.RangeEnd)
+                    ?? pendingRange.RangeStart,
+                _ => _historySelectedDate
+            };
+
+            if (resolvedDate != _historySelectedDate)
+            {
+                _historySelectedDate = resolvedDate;
+                _historyDisplayedMonth = new DateOnly(resolvedDate.Year, resolvedDate.Month, 1);
+            }
+
+            _pendingHistorySelectionRange = null;
+        }
+
         ApplyHistorySelection();
     }
 
@@ -1192,11 +1245,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         using var overlayAxisTextPaint = new SKPaint
         {
             Color = SKColor.Parse("#6B6F68").WithAlpha(205),
-            IsAntialias = true,
-            TextSize = 10,
-            TextAlign = SKTextAlign.Left,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+            IsAntialias = true
         };
+        using var overlayAxisFont = CreateSkFont("Microsoft YaHei UI", 10, SKFontStyleWeight.Normal);
         using var overlayAxisBackgroundPaint = new SKPaint
         {
             Color = SKColor.Parse(isNetwork ? "#FFF8EF" : "#F7FBF6").WithAlpha(225),
@@ -1205,17 +1256,15 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         using var labelTextPaint = new SKPaint
         {
             Color = SKColor.Parse("#223B35"),
-            IsAntialias = true,
-            TextSize = 11,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+            IsAntialias = true
         };
+        using var labelFont = CreateSkFont("Microsoft YaHei UI", 11, SKFontStyleWeight.SemiBold);
         using var splitLabelTextPaint = new SKPaint
         {
             Color = SKColor.Parse("#223B35"),
-            IsAntialias = true,
-            TextSize = 9,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+            IsAntialias = true
         };
+        using var splitLabelFont = CreateSkFont("Microsoft YaHei UI", 9, SKFontStyleWeight.SemiBold);
         using var labelBackgroundPaint = new SKPaint
         {
             Color = SKColor.Parse("#FDF8F0"),
@@ -1231,11 +1280,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         using var dateTextPaint = new SKPaint
         {
             Color = SKColor.Parse("#6F766E"),
-            IsAntialias = true,
-            TextSize = records.Length <= 10 ? 15 : 13,
-            TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei UI")
+            IsAntialias = true
         };
+        using var dateFont = CreateSkFont("Microsoft YaHei UI", records.Length <= 10 ? 15 : 13);
 
         for (var i = 0; i < 4; i++)
         {
@@ -1274,6 +1321,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                         labelBackgroundPaint,
                         labelBorderPaint,
                         splitLabelTextPaint,
+                        splitLabelFont,
                         left,
                         barWidth,
                         primary[i],
@@ -1285,6 +1333,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                         labelBackgroundPaint,
                         labelBorderPaint,
                         splitLabelTextPaint,
+                        splitLabelFont,
                         left + barWidth + gap,
                         barWidth,
                         secondary[i],
@@ -1294,7 +1343,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                         avoidRect: primaryLabelRect);
                 }
 
-                DrawHistoryDateLabel(canvas, dateTextPaint, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
+                DrawHistoryDateLabel(canvas, dateTextPaint, dateFont, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
             }
             else
             {
@@ -1303,15 +1352,15 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
                 if (showLabels)
                 {
-                    DrawHistoryBarLabel(canvas, labelBackgroundPaint, labelBorderPaint, labelTextPaint, left, groupWidth, total[i], yAxisMax, plotRect);
+                    DrawHistoryBarLabel(canvas, labelBackgroundPaint, labelBorderPaint, labelTextPaint, labelFont, left, groupWidth, total[i], yAxisMax, plotRect);
                 }
 
-                DrawHistoryDateLabel(canvas, dateTextPaint, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
+                DrawHistoryDateLabel(canvas, dateTextPaint, dateFont, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
             }
         }
 
         DrawHistoryOverlayLine(canvas, overlayLinePaint, overlayPointPaint, overlayValues, plotRect);
-        DrawHistoryOverlayAxisLabels(canvas, overlayAxisTextPaint, overlayAxisBackgroundPaint, overlayValues, plotRect, renderWidth, showOverlayRightAxis);
+        DrawHistoryOverlayAxisLabels(canvas, overlayAxisTextPaint, overlayAxisFont, overlayAxisBackgroundPaint, overlayValues, plotRect, renderWidth, showOverlayRightAxis);
 
         return new SingleChartRenderResult(CreateBitmapBuffer(surface, renderWidth, HistoryChartHeight), FormatBytes(yAxisMax));
     }
@@ -1392,6 +1441,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         SKPaint backgroundPaint,
         SKPaint borderPaint,
         SKPaint textPaint,
+        SKFont textFont,
         float left,
         float width,
         double value,
@@ -1410,8 +1460,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : compactMode
                 ? FormatCompactBytes(value)
                 : FormatBytes(value);
-        var bounds = new SKRect();
-        textPaint.MeasureText(label, ref bounds);
+        var bounds = MeasureTextBounds(textFont, label);
         var paddingX = compactMode ? 4f : 6f;
         var labelWidth = bounds.Width + paddingX * 2;
         var labelHeight = compactMode ? 14f : 18f;
@@ -1442,7 +1491,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var textBaseline = rect.MidY - (bounds.Top + bounds.Bottom) / 2f;
         canvas.DrawRoundRect(rect, 7, 7, backgroundPaint);
         canvas.DrawRoundRect(rect, 7, 7, borderPaint);
-        canvas.DrawText(label, rect.Left + paddingX, textBaseline, textPaint);
+        canvas.DrawText(label, rect.Left + paddingX, textBaseline, SKTextAlign.Left, textFont, textPaint);
         return rect;
     }
 
@@ -1531,6 +1580,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private static void DrawHistoryOverlayAxisLabels(
         SKCanvas canvas,
         SKPaint textPaint,
+        SKFont textFont,
         SKPaint backgroundPaint,
         IReadOnlyList<double> values,
         SKRect plotRect,
@@ -1545,14 +1595,13 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var overlayMax = values.Max();
         if (overlayMax <= 0d)
         {
-            var zeroBounds = new SKRect();
-            textPaint.MeasureText("0", ref zeroBounds);
-            DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, "0", zeroBounds, 10f, plotRect.Bottom, alignRight: false);
+            var zeroBounds = MeasureTextBounds(textFont, "0");
+            DrawOverlayAxisLabel(canvas, textPaint, textFont, backgroundPaint, "0", zeroBounds, 10f, plotRect.Bottom, alignRight: false);
 
             if (showRightAxis)
             {
                 var rightX = renderWidth - 8f;
-                DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, "0", zeroBounds, rightX, plotRect.Bottom, alignRight: true);
+                DrawOverlayAxisLabel(canvas, textPaint, textFont, backgroundPaint, "0", zeroBounds, rightX, plotRect.Bottom, alignRight: true);
             }
 
             return;
@@ -1565,14 +1614,13 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             var value = overlayMax * ratio;
             var label = FormatCompactDurationLabel(value);
             var y = plotRect.Top + (float)((plotRect.Height / (tickCount - 1)) * i);
-            var bounds = new SKRect();
-            textPaint.MeasureText(label, ref bounds);
-            DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, label, bounds, 10f, y, alignRight: false);
+            var bounds = MeasureTextBounds(textFont, label);
+            DrawOverlayAxisLabel(canvas, textPaint, textFont, backgroundPaint, label, bounds, 10f, y, alignRight: false);
 
             if (showRightAxis)
             {
                 var rightX = renderWidth - 8f;
-                DrawOverlayAxisLabel(canvas, textPaint, backgroundPaint, label, bounds, rightX, y, alignRight: true);
+                DrawOverlayAxisLabel(canvas, textPaint, textFont, backgroundPaint, label, bounds, rightX, y, alignRight: true);
             }
         }
     }
@@ -1580,6 +1628,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private static void DrawOverlayAxisLabel(
         SKCanvas canvas,
         SKPaint textPaint,
+        SKFont textFont,
         SKPaint backgroundPaint,
         string label,
         SKRect bounds,
@@ -1592,7 +1641,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : new SKRect(x, y - 8f, x + bounds.Width + 12f, y + 8f);
 
         canvas.DrawRoundRect(rect, 6, 6, backgroundPaint);
-        canvas.DrawText(label, rect.Left + 4f, y + 3.5f, textPaint);
+        var textBaseline = rect.MidY - (bounds.Top + bounds.Bottom) / 2f;
+        canvas.DrawText(label, rect.Left + 4f, textBaseline, SKTextAlign.Left, textFont, textPaint);
     }
 
     private static SKColor GetHistoryBarColor(string baseHex, int tintIndex)
@@ -1611,6 +1661,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private static void DrawHistoryDateLabel(
         SKCanvas canvas,
         SKPaint textPaint,
+        SKFont textFont,
         string dayText,
         float centerX,
         float baselineY,
@@ -1625,7 +1676,23 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             ? day.ToString("MM-dd", CultureInfo.InvariantCulture)
             : day.ToString("dd", CultureInfo.InvariantCulture);
 
-        canvas.DrawText(label, centerX, baselineY, textPaint);
+        canvas.DrawText(label, centerX, baselineY, SKTextAlign.Center, textFont, textPaint);
+    }
+
+    private static SKRect MeasureTextBounds(SKFont font, string text)
+    {
+        font.MeasureText(text, out var bounds);
+        return bounds;
+    }
+
+    private static SKFont CreateSkFont(string familyName, float size, SKFontStyleWeight weight = SKFontStyleWeight.Normal)
+    {
+        var typeface = SKTypeface.FromFamilyName(
+            familyName,
+            weight,
+            SKFontStyleWidth.Normal,
+            SKFontStyleSlant.Upright);
+        return new SKFont(typeface, size);
     }
 
     private string BuildHistoryTrafficDisplay()
@@ -1680,32 +1747,46 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         return date.AddDays(-offset);
     }
 
+    private static (DateOnly Start, DateOnly End) ResolveHistoryRange(HistoryAnalysisDimension dimension, DateOnly selectedDate)
+    {
+        return dimension switch
+        {
+            HistoryAnalysisDimension.Week => (GetWeekStart(selectedDate), GetWeekStart(selectedDate).AddDays(6)),
+            HistoryAnalysisDimension.Month => (new DateOnly(selectedDate.Year, selectedDate.Month, 1), new DateOnly(selectedDate.Year, selectedDate.Month, 1).AddMonths(1).AddDays(-1)),
+            _ => (selectedDate, selectedDate)
+        };
+    }
+
     private DateOnly ResolveDayHistorySelection(HistoryAnalysisDimension previousDimension, DateOnly selectedDate)
     {
-        var rangeStart = previousDimension switch
-        {
-            HistoryAnalysisDimension.Week => GetWeekStart(selectedDate),
-            HistoryAnalysisDimension.Month => new DateOnly(selectedDate.Year, selectedDate.Month, 1),
-            _ => selectedDate
-        };
-        var rangeEnd = previousDimension switch
-        {
-            HistoryAnalysisDimension.Week => GetWeekStart(selectedDate).AddDays(6),
-            HistoryAnalysisDimension.Month => new DateOnly(selectedDate.Year, selectedDate.Month, 1).AddMonths(1).AddDays(-1),
-            _ => selectedDate
-        };
+        var (rangeStart, rangeEnd) = ResolveHistoryRange(previousDimension, selectedDate);
+        return ResolveEarliestHistoryDate(_allHistoryDailyRecords, rangeStart, rangeEnd) ?? rangeStart;
+    }
 
-        var earliestDateWithData = _allHistoryDailyRecords
-            .Select(static record => DateOnly.TryParseExact(record.Day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
-                ? day
-                : (DateOnly?)null)
-            .Where(static day => day is not null)
-            .Select(static day => day!.Value)
-            .Where(day => day >= rangeStart && day <= rangeEnd)
-            .OrderBy(static day => day)
-            .FirstOrDefault();
+    private DateOnly ResolveWeekHistorySelection(HistoryAnalysisDimension previousDimension, DateOnly selectedDate)
+    {
+        var (rangeStart, rangeEnd) = ResolveHistoryRange(previousDimension, selectedDate);
+        return GetWeekStart(ResolveEarliestHistoryDate(_allHistoryDailyRecords, rangeStart, rangeEnd) ?? rangeStart);
+    }
 
-        return earliestDateWithData != default ? earliestDateWithData : rangeStart;
+    private static DateOnly? ResolveEarliestHistoryDate(
+        IReadOnlyList<DailyProcessActivitySummary> records,
+        DateOnly rangeStart,
+        DateOnly rangeEnd)
+    {
+        foreach (var day in records
+                     .Select(static record => DateOnly.TryParseExact(record.Day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDay)
+                         ? parsedDay
+                         : (DateOnly?)null)
+                     .Where(static day => day is not null)
+                     .Select(static day => day!.Value)
+                     .Where(day => day >= rangeStart && day <= rangeEnd)
+                     .OrderBy(static day => day))
+        {
+            return day;
+        }
+
+        return null;
     }
 
     private static ApplicationHistorySummary BuildHistorySummary(

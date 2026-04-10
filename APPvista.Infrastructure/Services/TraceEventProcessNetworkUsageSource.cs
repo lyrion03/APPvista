@@ -13,6 +13,35 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
     private const string SessionNamePrefix = "APPvista-Network";
     private static readonly TimeSpan RuntimeStatsLogInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan FilteredProcessCacheRetention = TimeSpan.FromSeconds(30);
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+    private const uint Th32CsSnapProcess = 0x00000002;
+    private static readonly nint InvalidHandleValue = new(-1);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "Process32FirstW", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool Process32First(nint snapshot, ref ProcessEntry32 entry);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "Process32NextW", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool Process32Next(nint snapshot, ref ProcessEntry32 entry);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(nint hProcess, int flags, System.Text.StringBuilder text, ref int size);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern nint OpenProcess(uint desiredAccess, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern nint CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CloseHandle(nint handle);
 
     private readonly ConcurrentQueue<ProcessNetworkUsageEvent> _queue = new();
     private readonly Dictionary<int, ProcessIdentity> _processIdentities = new();
@@ -208,8 +237,10 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
 
         try
         {
-            using var process = Process.GetProcessById(processId);
-            if (!ProcessMonitoringFilter.ShouldMonitor(process, _interactiveSessionId))
+            var sessionId = TryGetSessionId(processId);
+            executablePath = TryGetExecutablePath(processId);
+            var rawProcessName = TryGetProcessName(processId, executablePath);
+            if (!sessionId.HasValue || string.IsNullOrWhiteSpace(rawProcessName) || !ProcessMonitoringFilter.ShouldMonitor(processId, sessionId.Value, rawProcessName, _interactiveSessionId))
             {
                 processName = string.Empty;
                 executablePath = string.Empty;
@@ -223,8 +254,7 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
                 return false;
             }
 
-            executablePath = TryGetExecutablePath(process);
-            processName = ApplicationIdentityResolver.Resolve(process.ProcessName, executablePath);
+            processName = ApplicationIdentityResolver.Resolve(rawProcessName, executablePath);
             Interlocked.Increment(ref _identityResolves);
 
             lock (_sync)
@@ -270,15 +300,76 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
         }
     }
 
-    private static string TryGetExecutablePath(Process process)
+    private static string TryGetExecutablePath(int processId)
     {
-        try
-        {
-            return process.MainModule?.FileName ?? string.Empty;
-        }
-        catch
+        var processHandle = OpenProcess(ProcessQueryLimitedInformation, inheritHandle: false, (uint)processId);
+        if (processHandle == nint.Zero)
         {
             return string.Empty;
+        }
+
+        try
+        {
+            var size = 1024;
+            var builder = new System.Text.StringBuilder(size);
+            return QueryFullProcessImageName(processHandle, 0, builder, ref size)
+                ? builder.ToString()
+                : string.Empty;
+        }
+        finally
+        {
+            CloseHandle(processHandle);
+        }
+    }
+
+    private static int? TryGetSessionId(int processId)
+    {
+        return ProcessIdToSessionId((uint)processId, out var sessionId)
+            ? (int)sessionId
+            : null;
+    }
+
+    private static string TryGetProcessName(int processId, string executablePath)
+    {
+        if (!string.IsNullOrWhiteSpace(executablePath))
+        {
+            return Path.GetFileNameWithoutExtension(executablePath) ?? string.Empty;
+        }
+
+        var snapshot = CreateToolhelp32Snapshot(Th32CsSnapProcess, 0);
+        if (snapshot == InvalidHandleValue || snapshot == nint.Zero)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var entry = new ProcessEntry32
+            {
+                DwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<ProcessEntry32>()
+            };
+
+            if (!Process32First(snapshot, ref entry))
+            {
+                return string.Empty;
+            }
+
+            do
+            {
+                if (entry.Th32ProcessId == (uint)processId)
+                {
+                    return Path.GetFileNameWithoutExtension(entry.SzExeFile) ?? entry.SzExeFile ?? string.Empty;
+                }
+
+                entry.DwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<ProcessEntry32>();
+            }
+            while (Process32Next(snapshot, ref entry));
+
+            return string.Empty;
+        }
+        finally
+        {
+            CloseHandle(snapshot);
         }
     }
 
@@ -307,5 +398,22 @@ public sealed class TraceEventProcessNetworkUsageSource : IProcessNetworkUsageSo
         public string ProcessName { get; init; } = string.Empty;
         public string ExecutablePath { get; init; } = string.Empty;
         public DateTime LastSeenUtc { get; set; }
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct ProcessEntry32
+    {
+        public uint DwSize;
+        public uint CntUsage;
+        public uint Th32ProcessId;
+        public nuint Th32DefaultHeapId;
+        public uint Th32ModuleId;
+        public uint CntThreads;
+        public uint Th32ParentProcessID;
+        public int PcPriClassBase;
+        public uint DwFlags;
+
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string SzExeFile;
     }
 }

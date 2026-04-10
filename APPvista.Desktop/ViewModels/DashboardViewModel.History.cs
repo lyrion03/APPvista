@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,7 +42,9 @@ public sealed partial class DashboardViewModel
     private DateOnly _historySelectedDate = DateOnly.FromDateTime(DateTime.Today);
     private HistoryNetworkDisplayMode _historyNetworkDisplayMode = HistoryNetworkDisplayMode.Total;
     private HistoryIoDisplayMode _historyIoDisplayMode = HistoryIoDisplayMode.Total;
+    private int _historyActiveApplicationCount;
     private int _historyAverageApplicationCount;
+    private (HistoryDimension TargetDimension, DateOnly RangeStart, DateOnly RangeEnd)? _pendingHistorySelectionRange;
     private int _historyTopN = 3;
     private IReadOnlyList<HistoryDailyRecord> _historyCalendarRecords = [];
     private ImageSource? _historyTrafficPieChartSource;
@@ -65,6 +68,7 @@ public sealed partial class DashboardViewModel
     public ICommand SetHistoryNetworkSplitDisplayCommand { get; }
     public ICommand SetHistoryIoTotalDisplayCommand { get; }
     public ICommand SetHistoryIoSplitDisplayCommand { get; }
+    public ICommand ShowHistoryComparisonCommand { get; }
 
     public bool IsRealtimePageActive => _selectedDashboardPage == DashboardPage.Realtime;
     public bool IsHistoryPageActive => _selectedDashboardPage == DashboardPage.History;
@@ -77,7 +81,12 @@ public sealed partial class DashboardViewModel
         HistoryDimension.Month => "按月统计",
         _ => "按日统计"
     };
-    public string HistoryDimensionHeadline => $"{HistoryDimensionTitle} · 平均活跃应用 {_historyAverageApplicationCount}";
+    public string HistoryDimensionHeadline => _selectedHistoryDimension switch
+    {
+        HistoryDimension.Week => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount} · 日均活跃应用数 {_historyAverageApplicationCount}",
+        HistoryDimension.Month => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount} · 日均活跃应用数 {_historyAverageApplicationCount}",
+        _ => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount}"
+    };
 
     public string HistorySummaryCaption => _historySummary.Caption;
     public bool IsHistoryNetworkTotalMode => _historyNetworkDisplayMode == HistoryNetworkDisplayMode.Total;
@@ -205,6 +214,50 @@ public sealed partial class DashboardViewModel
         RaiseHistorySummaryChanged();
     }
 
+    private void OpenHistoryComparisonWindow()
+    {
+        var selectedDimension = _selectedHistoryDimension;
+        var selectedDate = _historySelectedDate;
+        var displayedMonth = _historyDisplayedMonth;
+        var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
+        var applicationRecords = MergeLiveTodayComparisonApplicationAggregates(
+            _historyAnalysisProvider.LoadApplicationAggregates(rangeStart, rangeEnd),
+            rangeStart,
+            rangeEnd);
+        var windowTitle = $"详细对比 · {HistoryDimensionTitle}";
+        var rangeDisplay = HistoryCalendarSelectionDisplay;
+
+        if (_historyComparisonWindow?.DataContext is HistoryComparisonViewModel existingViewModel)
+        {
+            existingViewModel.Load(windowTitle, rangeDisplay, applicationRecords);
+            if (_historyComparisonWindow.WindowState == WindowState.Minimized)
+            {
+                _historyComparisonWindow.WindowState = WindowState.Normal;
+            }
+
+            _historyComparisonWindow.Show();
+            _historyComparisonWindow.Activate();
+            _historyComparisonWindow.Topmost = true;
+            _historyComparisonWindow.Topmost = false;
+            _historyComparisonWindow.Focus();
+            return;
+        }
+
+        var viewModel = new HistoryComparisonViewModel(
+            _applicationIconCache,
+            new Dictionary<string, string>(_applicationAliases, StringComparer.OrdinalIgnoreCase),
+            applicationRecords,
+            windowTitle,
+            rangeDisplay);
+        var comparisonWindow = new APPvista.Desktop.HistoryComparisonWindow(viewModel)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        _historyComparisonWindow = comparisonWindow;
+        comparisonWindow.Closed += (_, _) => _historyComparisonWindow = null;
+        comparisonWindow.Show();
+    }
+
     private void SetHistoryDimension(HistoryDimension dimension)
     {
         if (_selectedHistoryDimension == dimension)
@@ -218,10 +271,23 @@ public sealed partial class DashboardViewModel
         {
             _historySelectedDate = _historyDisplayedMonth;
         }
+        else if (dimension == HistoryDimension.Week && previousDimension == HistoryDimension.Month)
+        {
+            var pendingRange = ResolveHistoryRange(previousDimension, _historySelectedDate, _historyDisplayedMonth);
+            _pendingHistorySelectionRange = (dimension, pendingRange.Start, pendingRange.End);
+            _historySelectedDate = ResolveWeekHistorySelection(previousDimension, _historySelectedDate, _historyDisplayedMonth);
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
         else if (dimension == HistoryDimension.Day)
         {
+            var pendingRange = ResolveHistoryRange(previousDimension, _historySelectedDate, _historyDisplayedMonth);
+            _pendingHistorySelectionRange = (dimension, pendingRange.Start, pendingRange.End);
             _historySelectedDate = ResolveDayHistorySelection(previousDimension, _historySelectedDate, _historyDisplayedMonth);
             _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
+        else
+        {
+            _pendingHistorySelectionRange = null;
         }
 
         RefreshHistoryCalendar();
@@ -316,7 +382,7 @@ public sealed partial class DashboardViewModel
         var loaded = await Task.Run(() => new
         {
             DailyRecords = _historyAnalysisProvider.LoadDailyRecords(maxDays: 120),
-            ApplicationRecords = _historyAnalysisProvider.LoadApplicationAggregates(rangeStart, rangeEnd)
+            ApplicationRecords = _historyAnalysisProvider.LoadOverviewApplicationAggregates(rangeStart, rangeEnd)
         });
 
         if (version != _historyAnalysisLoadVersion)
@@ -326,14 +392,38 @@ public sealed partial class DashboardViewModel
 
         var dailyRecords = MergeLiveTodayRecord(loaded.DailyRecords);
         _historyCalendarRecords = dailyRecords;
+        if (_pendingHistorySelectionRange is { } pendingRange && selectedDimension == pendingRange.TargetDimension)
+        {
+            var resolvedDate = pendingRange.TargetDimension switch
+            {
+                HistoryDimension.Week => GetWeekStart(
+                    ResolveEarliestHistoryDate(dailyRecords, pendingRange.RangeStart, pendingRange.RangeEnd)
+                    ?? pendingRange.RangeStart),
+                HistoryDimension.Day => ResolveEarliestHistoryDate(dailyRecords, pendingRange.RangeStart, pendingRange.RangeEnd)
+                    ?? pendingRange.RangeStart,
+                _ => _historySelectedDate
+            };
+
+            if (resolvedDate != _historySelectedDate)
+            {
+                _historySelectedDate = resolvedDate;
+                _historyDisplayedMonth = new DateOnly(resolvedDate.Year, resolvedDate.Month, 1);
+                selectedDate = _historySelectedDate;
+                displayedMonth = _historyDisplayedMonth;
+            }
+
+            _pendingHistorySelectionRange = null;
+        }
+
         RefreshHistoryCalendar();
         var selectedRecords = SelectHistoryRecords(dailyRecords, selectedDimension, selectedDate, displayedMonth);
-        var applicationRecords = MergeLiveTodayApplicationAggregates(
+        var applicationRecords = MergeLiveTodayOverviewApplicationAggregates(
             loaded.ApplicationRecords,
             rangeStart,
             rangeEnd);
 
         _historySummary = BuildHistorySummary(selectedRecords, selectedDimension, selectedDate, displayedMonth);
+        _historyActiveApplicationCount = applicationRecords.Count;
         _historyAverageApplicationCount = selectedRecords.Count == 0
             ? 0
             : (int)Math.Round(selectedRecords.Average(static record => record.ApplicationCount), MidpointRounding.AwayFromZero);
@@ -349,13 +439,19 @@ public sealed partial class DashboardViewModel
         var records = dailyRecords.ToList();
         var existingIndex = records.FindIndex(record => record.Day == today);
         var baselineRecord = existingIndex >= 0 ? records[existingIndex] : default;
+        var activeProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var process in Snapshot.TopProcesses)
+        {
+            if (!string.IsNullOrWhiteSpace(process.ProcessName))
+            {
+                activeProcessNames.Add(process.ProcessName);
+            }
+        }
+
         var mergedRecord = baselineRecord with
         {
             Day = today,
-            ApplicationCount = Snapshot.TopProcesses
-                .Select(process => process.ProcessName)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count(),
+            ApplicationCount = activeProcessNames.Count,
             AppDownloadBytes = Snapshot.TodayDownloadBytes,
             AppUploadBytes = Snapshot.TodayUploadBytes,
             AppIoReadBytes = Snapshot.TodayIoReadBytes,
@@ -436,7 +532,55 @@ public sealed partial class DashboardViewModel
         };
     }
 
-    private IReadOnlyList<HistoryApplicationAggregate> MergeLiveTodayApplicationAggregates(
+    private IReadOnlyList<HistoryOverviewApplicationAggregate> MergeLiveTodayOverviewApplicationAggregates(
+        IReadOnlyList<HistoryOverviewApplicationAggregate> applicationRecords,
+        DateOnly rangeStart,
+        DateOnly rangeEnd)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (today < rangeStart || today > rangeEnd)
+        {
+            return applicationRecords;
+        }
+
+        var merged = applicationRecords.ToDictionary(
+            static record => record.ProcessName,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var process in Snapshot.TopProcesses)
+        {
+            if (string.IsNullOrWhiteSpace(process.ProcessName))
+            {
+                continue;
+            }
+
+            if (!merged.TryGetValue(process.ProcessName, out var aggregate))
+            {
+                aggregate = new HistoryOverviewApplicationAggregate
+                {
+                    ProcessName = process.ProcessName,
+                    ExecutablePath = process.ExecutablePath
+                };
+            }
+
+            merged[process.ProcessName] = aggregate with
+            {
+                ExecutablePath = string.IsNullOrWhiteSpace(aggregate.ExecutablePath) && !string.IsNullOrWhiteSpace(process.ExecutablePath)
+                    ? process.ExecutablePath
+                    : aggregate.ExecutablePath,
+                ForegroundMilliseconds = aggregate.ForegroundMilliseconds + process.DailyForegroundMilliseconds,
+                BackgroundMilliseconds = aggregate.BackgroundMilliseconds + process.DailyBackgroundMilliseconds,
+                DownloadBytes = aggregate.DownloadBytes + process.DailyDownloadBytes,
+                UploadBytes = aggregate.UploadBytes + process.DailyUploadBytes,
+                IoReadBytes = aggregate.IoReadBytes + process.DailyIoReadBytes,
+                IoWriteBytes = aggregate.IoWriteBytes + process.DailyIoWriteBytes
+            };
+        }
+
+        return merged.Values.ToList();
+    }
+
+    private IReadOnlyList<HistoryApplicationAggregate> MergeLiveTodayComparisonApplicationAggregates(
         IReadOnlyList<HistoryApplicationAggregate> applicationRecords,
         DateOnly rangeStart,
         DateOnly rangeEnd)
@@ -451,28 +595,65 @@ public sealed partial class DashboardViewModel
             static record => record.ProcessName,
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var process in Snapshot.TopProcesses
-                     .Where(static process => !string.IsNullOrWhiteSpace(process.ProcessName))
-                     .GroupBy(static process => process.ProcessName, StringComparer.OrdinalIgnoreCase)
-                     .Select(static group => new HistoryApplicationAggregate
-                     {
-                         ProcessName = group.First().ProcessName,
-                         ExecutablePath = group.Select(static item => item.ExecutablePath).FirstOrDefault(static path => !string.IsNullOrWhiteSpace(path)) ?? string.Empty,
-                         ForegroundMilliseconds = group.Sum(static item => item.DailyForegroundMilliseconds),
-                         BackgroundMilliseconds = group.Sum(static item => item.DailyBackgroundMilliseconds),
-                         DownloadBytes = group.Sum(static item => item.DailyDownloadBytes),
-                         UploadBytes = group.Sum(static item => item.DailyUploadBytes),
-                         IoReadBytes = group.Sum(static item => item.DailyIoReadBytes),
-                         IoWriteBytes = group.Sum(static item => item.DailyIoWriteBytes)
-                     }))
+        foreach (var process in Snapshot.TopProcesses)
         {
-            merged[process.ProcessName] = process;
+            if (string.IsNullOrWhiteSpace(process.ProcessName))
+            {
+                continue;
+            }
+
+            if (!merged.TryGetValue(process.ProcessName, out var aggregate))
+            {
+                aggregate = new HistoryApplicationAggregate
+                {
+                    ProcessName = process.ProcessName,
+                    ExecutablePath = process.ExecutablePath
+                };
+            }
+
+            var totalUsageMilliseconds = process.DailyForegroundMilliseconds + process.DailyBackgroundMilliseconds;
+            var estimatedIoOperations = totalUsageMilliseconds > 0
+                ? (long)Math.Round(process.AverageIops * (totalUsageMilliseconds / 1000d), MidpointRounding.AwayFromZero)
+                : 0L;
+            var estimatedReadOperations = process.DailyIoReadBytes + process.DailyIoWriteBytes > 0
+                ? (long)Math.Round(estimatedIoOperations * (process.DailyIoReadBytes / (double)Math.Max(1L, process.DailyIoReadBytes + process.DailyIoWriteBytes)), MidpointRounding.AwayFromZero)
+                : 0L;
+            var estimatedWriteOperations = Math.Max(0L, estimatedIoOperations - estimatedReadOperations);
+
+            merged[process.ProcessName] = aggregate with
+            {
+                ActiveDays = Math.Max(aggregate.ActiveDays, 1),
+                ExecutablePath = string.IsNullOrWhiteSpace(aggregate.ExecutablePath) && !string.IsNullOrWhiteSpace(process.ExecutablePath)
+                    ? process.ExecutablePath
+                    : aggregate.ExecutablePath,
+                ForegroundMilliseconds = aggregate.ForegroundMilliseconds + process.DailyForegroundMilliseconds,
+                BackgroundMilliseconds = aggregate.BackgroundMilliseconds + process.DailyBackgroundMilliseconds,
+                DownloadBytes = aggregate.DownloadBytes + process.DailyDownloadBytes,
+                UploadBytes = aggregate.UploadBytes + process.DailyUploadBytes,
+                IoReadBytes = aggregate.IoReadBytes + process.DailyIoReadBytes,
+                IoWriteBytes = aggregate.IoWriteBytes + process.DailyIoWriteBytes,
+                ForegroundCpuTotal = aggregate.ForegroundCpuTotal + process.AverageForegroundCpu,
+                ForegroundWorkingSetTotal = aggregate.ForegroundWorkingSetTotal + process.AverageForegroundWorkingSetBytes,
+                ForegroundSamples = aggregate.ForegroundSamples + (process.DailyForegroundMilliseconds > 0 ? 1 : 0),
+                BackgroundCpuTotal = aggregate.BackgroundCpuTotal + process.AverageBackgroundCpu,
+                BackgroundWorkingSetTotal = aggregate.BackgroundWorkingSetTotal + process.AverageBackgroundWorkingSetBytes,
+                BackgroundSamples = aggregate.BackgroundSamples + (process.DailyBackgroundMilliseconds > 0 ? 1 : 0),
+                PeakWorkingSetBytes = Math.Max(aggregate.PeakWorkingSetBytes, process.PeakWorkingSetBytes),
+                ThreadCountTotal = aggregate.ThreadCountTotal + process.AverageThreadCount,
+                ThreadSamples = aggregate.ThreadSamples + (process.AverageThreadCount > 0 ? 1 : 0),
+                PeakThreadCount = Math.Max(aggregate.PeakThreadCount, process.PeakThreadCount),
+                IoReadOperations = aggregate.IoReadOperations + estimatedReadOperations,
+                IoWriteOperations = aggregate.IoWriteOperations + estimatedWriteOperations,
+                PeakDownloadBytesPerSecond = Math.Max(aggregate.PeakDownloadBytesPerSecond, process.PeakDownloadBytesPerSecond),
+                PeakUploadBytesPerSecond = Math.Max(aggregate.PeakUploadBytesPerSecond, process.PeakUploadBytesPerSecond),
+                PeakIoBytesPerSecond = Math.Max(aggregate.PeakIoBytesPerSecond, process.PeakIoBytesPerSecond)
+            };
         }
 
         return merged.Values.ToList();
     }
 
-    private void RefreshHistoryTopApplications(IReadOnlyList<HistoryApplicationAggregate> applicationRecords)
+    private void RefreshHistoryTopApplications(IReadOnlyList<HistoryOverviewApplicationAggregate> applicationRecords)
     {
         var trafficRecords = applicationRecords
             .OrderByDescending(static record => record.TotalTrafficBytes)
@@ -528,7 +709,7 @@ public sealed partial class DashboardViewModel
             static record => FormatDuration(record.ForegroundMilliseconds));
     }
 
-    private HistoryRankingItemViewModel CreateHistoryRankingItem(int rank, HistoryApplicationAggregate record, string metricDisplay)
+    private HistoryRankingItemViewModel CreateHistoryRankingItem(int rank, HistoryOverviewApplicationAggregate record, string metricDisplay)
     {
         return new HistoryRankingItemViewModel(
             rank.ToString(CultureInfo.InvariantCulture),
@@ -565,18 +746,18 @@ public sealed partial class DashboardViewModel
         IReadOnlyList<HistoryRankingItemViewModel> items,
         string emptyMetricDisplay)
     {
-        target.Clear();
+        var source = items.Count == 0
+            ? [new HistoryRankingItemViewModel("-", "暂无数据", emptyMetricDisplay, null)]
+            : items;
 
-        if (items.Count == 0)
-        {
-            target.Add(new HistoryRankingItemViewModel("-", "暂无数据", emptyMetricDisplay, null));
-            return;
-        }
-
-        foreach (var item in items)
-        {
-            target.Add(item);
-        }
+        SyncObservableCollection(
+            target,
+            source,
+            static (left, right) =>
+                left.Rank == right.Rank &&
+                left.ApplicationName == right.ApplicationName &&
+                left.MetricDisplay == right.MetricDisplay &&
+                left.IconSourcePath == right.IconSourcePath);
     }
 
     private void SetHistoryTopN(int value)
@@ -612,6 +793,33 @@ public sealed partial class DashboardViewModel
             HistoryDimension.Month => SelectMonthRecords(dailyRecords, displayedMonth),
             _ => dailyRecords.Where(record => record.Day == selectedDate).OrderBy(record => record.Day).ToList()
         };
+    }
+
+    private static void SyncObservableCollection<T>(
+        ObservableCollection<T> target,
+        IReadOnlyList<T> source,
+        Func<T, T, bool> equals)
+    {
+        var sharedCount = Math.Min(target.Count, source.Count);
+        for (var index = 0; index < sharedCount; index++)
+        {
+            if (equals(target[index], source[index]))
+            {
+                continue;
+            }
+
+            target[index] = source[index];
+        }
+
+        while (target.Count > source.Count)
+        {
+            target.RemoveAt(target.Count - 1);
+        }
+
+        for (var index = target.Count; index < source.Count; index++)
+        {
+            target.Add(source[index]);
+        }
     }
 
     private static IReadOnlyList<HistoryDailyRecord> SelectWeekRecords(IReadOnlyList<HistoryDailyRecord> dailyRecords, DateOnly selectedDate)
@@ -702,13 +910,42 @@ public sealed partial class DashboardViewModel
             _ => selectedDate
         };
 
-        var earliestDateWithData = _historyCalendarRecords
-            .Select(static record => record.Day)
-            .Where(day => day >= rangeStart && day <= rangeEnd)
-            .OrderBy(static day => day)
-            .FirstOrDefault();
+        var earliestDateWithData = ResolveEarliestHistoryDate(_historyCalendarRecords, rangeStart, rangeEnd);
 
-        return earliestDateWithData != default ? earliestDateWithData : rangeStart;
+        return earliestDateWithData ?? rangeStart;
+    }
+
+    private DateOnly ResolveWeekHistorySelection(HistoryDimension previousDimension, DateOnly selectedDate, DateOnly displayedMonth)
+    {
+        var rangeStart = previousDimension switch
+        {
+            HistoryDimension.Month => displayedMonth,
+            _ => selectedDate
+        };
+        var rangeEnd = previousDimension switch
+        {
+            HistoryDimension.Month => displayedMonth.AddMonths(1).AddDays(-1),
+            _ => selectedDate
+        };
+
+        var earliestDateWithData = ResolveEarliestHistoryDate(_historyCalendarRecords, rangeStart, rangeEnd);
+        return GetWeekStart(earliestDateWithData ?? rangeStart);
+    }
+
+    private static DateOnly? ResolveEarliestHistoryDate(
+        IReadOnlyList<HistoryDailyRecord> dailyRecords,
+        DateOnly rangeStart,
+        DateOnly rangeEnd)
+    {
+        foreach (var day in dailyRecords
+                     .Select(static record => record.Day)
+                     .Where(day => day >= rangeStart && day <= rangeEnd)
+                     .OrderBy(static day => day))
+        {
+            return day;
+        }
+
+        return null;
     }
 
     private string BuildHistoryNetworkDisplay(long downloadBytes, long uploadBytes, long peakDownloadBytes, long peakUploadBytes)
@@ -726,9 +963,9 @@ public sealed partial class DashboardViewModel
     }
 
     private ImageSource BuildHistoryPieChartImage(
-        IReadOnlyList<HistoryApplicationAggregate> orderedRecords,
-        Func<HistoryApplicationAggregate, long> valueSelector,
-        Func<HistoryApplicationAggregate, string> valueFormatter)
+        IReadOnlyList<HistoryOverviewApplicationAggregate> orderedRecords,
+        Func<HistoryOverviewApplicationAggregate, long> valueSelector,
+        Func<HistoryOverviewApplicationAggregate, string> valueFormatter)
     {
         const int width = 436;
         const int height = 332;

@@ -18,34 +18,28 @@ internal static class ProcessMonitoringFilter
         "dwm"
     ];
 
-    public static bool ShouldMonitor(Process process, int interactiveSessionId)
+    public static bool ShouldMonitor(int processId, int sessionId, string processName, int interactiveSessionId)
     {
-        try
-        {
-            if (process.Id <= 0)
-            {
-                return false;
-            }
-            if (process.SessionId != interactiveSessionId)
-            {
-                return false;
-            }
-            var processName = process.ProcessName;
-            if (string.IsNullOrWhiteSpace(processName))
-            {
-                return false;
-            }
-
-            if (ExcludedProcessNames.Any(item => string.Equals(item, processName, StringComparison.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
-
-            return true;
-        }
-        catch
+        if (processId <= 0)
         {
             return false;
         }
+
+        if (sessionId != interactiveSessionId)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return false;
+        }
+
+        if (ExcludedProcessNames.Any(item => string.Equals(item, processName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return true;
     }
 }

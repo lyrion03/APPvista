@@ -35,6 +35,12 @@ public sealed partial class DashboardViewModel : ObservableObject
     private static readonly RefreshIntervalOption RefreshEvery2Seconds = new("2 秒", TimeSpan.FromSeconds(2));
     private static readonly RefreshIntervalOption RefreshEvery5Seconds = new("5 秒", TimeSpan.FromSeconds(5));
     private static readonly RefreshIntervalOption RefreshEvery10Seconds = new("10 秒", TimeSpan.FromSeconds(10));
+    private static readonly Brush NetworkDownloadBrush = CreateFrozenBrush("#6CB8FF");
+    private static readonly Brush NetworkUploadBrush = CreateFrozenBrush("#FFAE72");
+    private static readonly Brush NetworkTotalBrush = CreateFrozenBrush("#9AD0BF");
+    private static readonly Brush IoReadBrush = CreateFrozenBrush("#5EB2A4");
+    private static readonly Brush IoWriteBrush = CreateFrozenBrush("#E7A075");
+    private static readonly Brush IoTotalBrush = CreateFrozenBrush("#8FD4B9");
 
     public readonly record struct RefreshIntervalOption(string Label, TimeSpan Interval)
     {
@@ -81,6 +87,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     private readonly DispatcherTimer _refreshTimer;
     private readonly Dictionary<string, string> _applicationAliases;
     private readonly Dictionary<string, ApplicationDetailWindow> _openDetailWindows;
+    private APPvista.Desktop.HistoryComparisonWindow? _historyComparisonWindow;
     private readonly List<double> _networkDownloadHistory = [];
     private readonly List<double> _networkUploadHistory = [];
     private readonly List<double> _ioReadHistory = [];
@@ -108,6 +115,14 @@ public sealed partial class DashboardViewModel : ObservableObject
     private bool _hasDeferredMainWindowRefresh;
     private bool _pendingBlacklistCandidateRefresh;
     private double _applicationCardViewportWidth = DefaultApplicationCardViewportWidth;
+    private PointCollection _networkMiniTotalPoints = [];
+    private PointCollection _networkMiniDownloadPoints = [];
+    private PointCollection _networkMiniUploadPoints = [];
+    private PointCollection _ioMiniTotalPoints = [];
+    private PointCollection _ioMiniReadPoints = [];
+    private PointCollection _ioMiniWritePoints = [];
+    private PeakMarkerInfo _networkPeakMarker = new(0, OverviewChartHeight - 1d, "峰 0 B/s", Brushes.Transparent, 0);
+    private PeakMarkerInfo _ioPeakMarker = new(0, OverviewChartHeight - 1d, "峰 0 B/s", Brushes.Transparent, 0);
 
     public DashboardViewModel(
         IMonitoringDashboardService dashboardService,
@@ -214,6 +229,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         SetHistoryNetworkSplitDisplayCommand = new RelayCommand(SetHistoryNetworkSplitDisplay);
         SetHistoryIoTotalDisplayCommand = new RelayCommand(SetHistoryIoTotalDisplay);
         SetHistoryIoSplitDisplayCommand = new RelayCommand(SetHistoryIoSplitDisplay);
+        ShowHistoryComparisonCommand = new RelayCommand(OpenHistoryComparisonWindow);
 
         _refreshTimer = new DispatcherTimer
         {
@@ -333,20 +349,20 @@ public sealed partial class DashboardViewModel : ObservableObject
     public bool CanSaveCustomMetricSelection =>
         SelectedCustomMetricCount >= ApplicationCardMetricPreferences.MinimumSelectedMetricCount &&
         SelectedCustomMetricCount <= ApplicationCardMetricPreferences.MaximumSelectedMetricCount;
-    public PointCollection NetworkMiniTotalPoints => BuildSparklinePoints(_networkDownloadHistory.Zip(_networkUploadHistory, static (a, b) => a + b));
-    public PointCollection NetworkMiniDownloadPoints => BuildSparklinePoints(_networkDownloadHistory);
-    public PointCollection NetworkMiniUploadPoints => BuildSparklinePoints(_networkUploadHistory);
-    public PointCollection IoMiniTotalPoints => BuildSparklinePoints(_ioReadHistory.Zip(_ioWriteHistory, static (a, b) => a + b));
-    public PointCollection IoMiniReadPoints => BuildSparklinePoints(_ioReadHistory);
-    public PointCollection IoMiniWritePoints => BuildSparklinePoints(_ioWriteHistory);
-    public double NetworkMiniPeakLeft => GetNetworkPeakMarker().Left;
-    public double NetworkMiniPeakTop => GetNetworkPeakMarker().Top;
-    public string NetworkMiniPeakLabel => GetNetworkPeakMarker().Label;
-    public Brush NetworkMiniPeakBrush => GetNetworkPeakMarker().Brush;
-    public double IoMiniPeakLeft => GetIoPeakMarker().Left;
-    public double IoMiniPeakTop => GetIoPeakMarker().Top;
-    public string IoMiniPeakLabel => GetIoPeakMarker().Label;
-    public Brush IoMiniPeakBrush => GetIoPeakMarker().Brush;
+    public PointCollection NetworkMiniTotalPoints => _networkMiniTotalPoints;
+    public PointCollection NetworkMiniDownloadPoints => _networkMiniDownloadPoints;
+    public PointCollection NetworkMiniUploadPoints => _networkMiniUploadPoints;
+    public PointCollection IoMiniTotalPoints => _ioMiniTotalPoints;
+    public PointCollection IoMiniReadPoints => _ioMiniReadPoints;
+    public PointCollection IoMiniWritePoints => _ioMiniWritePoints;
+    public double NetworkMiniPeakLeft => _networkPeakMarker.Left;
+    public double NetworkMiniPeakTop => _networkPeakMarker.Top;
+    public string NetworkMiniPeakLabel => _networkPeakMarker.Label;
+    public Brush NetworkMiniPeakBrush => _networkPeakMarker.Brush;
+    public double IoMiniPeakLeft => _ioPeakMarker.Left;
+    public double IoMiniPeakTop => _ioPeakMarker.Top;
+    public string IoMiniPeakLabel => _ioPeakMarker.Label;
+    public Brush IoMiniPeakBrush => _ioPeakMarker.Brush;
     public bool IsSortByNameMode => SelectedSortOption == SortByName;
     public bool IsSortByFocusMode => SelectedSortOption == SortByFocus;
     public bool IsSortByNetworkMode => SelectedSortOption == SortByNetwork;
@@ -814,9 +830,11 @@ public sealed partial class DashboardViewModel : ObservableObject
 
     private void ReplaceApplications(IReadOnlyList<ApplicationCardViewModel> items)
     {
+        var itemSet = new HashSet<ApplicationCardViewModel>(items);
+
         for (var index = Applications.Count - 1; index >= 0; index--)
         {
-            if (!items.Contains(Applications[index]))
+            if (!itemSet.Contains(Applications[index]))
             {
                 Applications.RemoveAt(index);
             }
@@ -869,24 +887,45 @@ public sealed partial class DashboardViewModel : ObservableObject
     private void RebuildApplicationRows()
     {
         var cardsPerRow = ResolveApplicationCardsPerRow();
-        var rows = new List<ApplicationCardRowViewModel>();
+        var rows = new List<ApplicationCardRowViewModel>((Applications.Count + cardsPerRow - 1) / cardsPerRow);
         var changed = false;
 
         for (var index = 0; index < Applications.Count; index += cardsPerRow)
         {
-            var rowItems = Applications.Skip(index).Take(cardsPerRow).ToList();
+            var rowItemCount = Math.Min(cardsPerRow, Applications.Count - index);
+            var rowItems = new List<ApplicationCardViewModel>(rowItemCount);
+            for (var itemIndex = 0; itemIndex < rowItemCount; itemIndex++)
+            {
+                rowItems.Add(Applications[index + itemIndex]);
+            }
+
             rows.Add(new ApplicationCardRowViewModel(rowItems));
 
             if (!changed)
             {
-                if (index / cardsPerRow >= ApplicationRows.Count)
+                var rowIndex = index / cardsPerRow;
+                if (rowIndex >= ApplicationRows.Count)
                 {
                     changed = true;
                 }
                 else
                 {
-                    var existingRow = ApplicationRows[index / cardsPerRow].Items;
-                    changed = existingRow.Count != rowItems.Count || !existingRow.SequenceEqual(rowItems);
+                    var existingRow = ApplicationRows[rowIndex].Items;
+                    if (existingRow.Count != rowItemCount)
+                    {
+                        changed = true;
+                    }
+                    else
+                    {
+                        for (var itemIndex = 0; itemIndex < rowItemCount; itemIndex++)
+                        {
+                            if (!ReferenceEquals(existingRow[itemIndex], rowItems[itemIndex]))
+                            {
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1458,6 +1497,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         AppendSample(_networkUploadHistory, GetRealtimeUploadBytesPerSecond());
         AppendSample(_ioReadHistory, GetRealtimeIoReadBytesPerSecond());
         AppendSample(_ioWriteHistory, GetRealtimeIoWriteBytesPerSecond());
+        RefreshOverviewChartState();
         if (notify)
         {
             RaiseOverviewChartProperties();
@@ -1482,15 +1522,26 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
     }
 
-    private static PointCollection BuildSparklinePoints(IEnumerable<double> values)
+    private void RefreshOverviewChartState()
     {
-        var samples = values.ToList();
-        if (samples.Count == 0)
+        _networkMiniDownloadPoints = BuildSparklinePoints(_networkDownloadHistory);
+        _networkMiniUploadPoints = BuildSparklinePoints(_networkUploadHistory);
+        _networkMiniTotalPoints = BuildCombinedSparklinePoints(_networkDownloadHistory, _networkUploadHistory);
+        _ioMiniReadPoints = BuildSparklinePoints(_ioReadHistory);
+        _ioMiniWritePoints = BuildSparklinePoints(_ioWriteHistory);
+        _ioMiniTotalPoints = BuildCombinedSparklinePoints(_ioReadHistory, _ioWriteHistory);
+        _networkPeakMarker = GetNetworkPeakMarker();
+        _ioPeakMarker = GetIoPeakMarker();
+    }
+
+    private static PointCollection BuildSparklinePoints(IReadOnlyList<double> values)
+    {
+        if (values.Count == 0)
         {
             return new PointCollection();
         }
 
-        if (samples.Count == 1)
+        if (values.Count == 1)
         {
             return new PointCollection
             {
@@ -1499,16 +1550,59 @@ public sealed partial class DashboardViewModel : ObservableObject
             };
         }
 
-        var max = samples.Max();
-        var normalizedMax = max > 0d ? max : 1d;
-        var stepX = OverviewChartWidth / (samples.Count - 1d);
-        var drawableHeight = OverviewChartHeight - 1d;
-        var points = new PointCollection(samples.Count);
+        var max = 0d;
+        for (var index = 0; index < values.Count; index++)
+        {
+            max = Math.Max(max, values[index]);
+        }
 
-        for (var index = 0; index < samples.Count; index++)
+        var normalizedMax = max > 0d ? max : 1d;
+        var stepX = OverviewChartWidth / (values.Count - 1d);
+        var drawableHeight = OverviewChartHeight - 1d;
+        var points = new PointCollection(values.Count);
+
+        for (var index = 0; index < values.Count; index++)
         {
             var x = stepX * index;
-            var y = drawableHeight - (samples[index] / normalizedMax * drawableHeight);
+            var y = drawableHeight - (values[index] / normalizedMax * drawableHeight);
+            points.Add(new Point(x, y));
+        }
+
+        return points;
+    }
+
+    private static PointCollection BuildCombinedSparklinePoints(IReadOnlyList<double> first, IReadOnlyList<double> second)
+    {
+        var count = Math.Min(first.Count, second.Count);
+        if (count == 0)
+        {
+            return new PointCollection();
+        }
+
+        if (count == 1)
+        {
+            return new PointCollection
+            {
+                new Point(0, OverviewChartHeight / 2d),
+                new Point(OverviewChartWidth, OverviewChartHeight / 2d)
+            };
+        }
+
+        var max = 0d;
+        for (var index = 0; index < count; index++)
+        {
+            max = Math.Max(max, first[index] + second[index]);
+        }
+
+        var normalizedMax = max > 0d ? max : 1d;
+        var stepX = OverviewChartWidth / (count - 1d);
+        var drawableHeight = OverviewChartHeight - 1d;
+        var points = new PointCollection(count);
+
+        for (var index = 0; index < count; index++)
+        {
+            var x = stepX * index;
+            var y = drawableHeight - ((first[index] + second[index]) / normalizedMax * drawableHeight);
             points.Add(new Point(x, y));
         }
 
@@ -1519,25 +1613,25 @@ public sealed partial class DashboardViewModel : ObservableObject
     {
         return _networkDisplayMode == NetworkDisplayMode.Split
             ? BuildPeakMarker(
-                ("下", _networkDownloadHistory, "#6CB8FF"),
-                ("上", _networkUploadHistory, "#FFAE72"))
-            : BuildPeakMarker(("峰", _networkDownloadHistory.Zip(_networkUploadHistory, static (a, b) => a + b).ToList(), "#9AD0BF"));
+                ("下", _networkDownloadHistory, NetworkDownloadBrush),
+                ("上", _networkUploadHistory, NetworkUploadBrush))
+            : BuildCombinedPeakMarker("峰", _networkDownloadHistory, _networkUploadHistory, NetworkTotalBrush);
     }
 
     private PeakMarkerInfo GetIoPeakMarker()
     {
         return _ioDisplayMode == IoDisplayMode.Split
             ? BuildPeakMarker(
-                ("读", _ioReadHistory, "#5EB2A4"),
-                ("写", _ioWriteHistory, "#E7A075"))
-            : BuildPeakMarker(("峰", _ioReadHistory.Zip(_ioWriteHistory, static (a, b) => a + b).ToList(), "#8FD4B9"));
+                ("读", _ioReadHistory, IoReadBrush),
+                ("写", _ioWriteHistory, IoWriteBrush))
+            : BuildCombinedPeakMarker("峰", _ioReadHistory, _ioWriteHistory, IoTotalBrush);
     }
 
-    private static PeakMarkerInfo BuildPeakMarker(params (string Prefix, IReadOnlyList<double> Samples, string ColorHex)[] series)
+    private static PeakMarkerInfo BuildPeakMarker(params (string Prefix, IReadOnlyList<double> Samples, Brush Brush)[] series)
     {
         PeakMarkerInfo? best = null;
 
-        foreach (var (prefix, samples, colorHex) in series)
+        foreach (var (prefix, samples, brush) in series)
         {
             if (samples.Count == 0)
             {
@@ -1560,7 +1654,7 @@ public sealed partial class DashboardViewModel : ObservableObject
                 continue;
             }
 
-            var marker = BuildPeakMarker(samples, peakIndex, peakValue, prefix, colorHex);
+            var marker = BuildPeakMarker(samples, peakIndex, peakValue, prefix, brush);
             if (best is null || marker.RawValue > best.Value.RawValue)
             {
                 best = marker;
@@ -1570,7 +1664,30 @@ public sealed partial class DashboardViewModel : ObservableObject
         return best ?? new PeakMarkerInfo(0, OverviewChartHeight - 1d, "峰 0 B/s", Brushes.Transparent, 0);
     }
 
-    private static PeakMarkerInfo BuildPeakMarker(IReadOnlyList<double> samples, int peakIndex, double peakValue, string prefix, string colorHex)
+    private static PeakMarkerInfo BuildCombinedPeakMarker(string prefix, IReadOnlyList<double> first, IReadOnlyList<double> second, Brush brush)
+    {
+        var count = Math.Min(first.Count, second.Count);
+        if (count == 0)
+        {
+            return new PeakMarkerInfo(0, OverviewChartHeight - 1d, "峰 0 B/s", Brushes.Transparent, 0);
+        }
+
+        var peakValue = 0d;
+        var peakIndex = 0;
+        for (var index = 0; index < count; index++)
+        {
+            var value = first[index] + second[index];
+            if (value > peakValue)
+            {
+                peakValue = value;
+                peakIndex = index;
+            }
+        }
+
+        return BuildCombinedPeakMarker(first, second, count, peakIndex, peakValue, prefix, brush);
+    }
+
+    private static PeakMarkerInfo BuildPeakMarker(IReadOnlyList<double> samples, int peakIndex, double peakValue, string prefix, Brush brush)
     {
         var normalizedMax = Math.Max(1d, samples.Max());
         var drawableHeight = OverviewChartHeight - 1d;
@@ -1579,9 +1696,37 @@ public sealed partial class DashboardViewModel : ObservableObject
         var y = drawableHeight - (peakValue / normalizedMax * drawableHeight);
         var left = Math.Max(0d, Math.Min(OverviewChartWidth - OverviewPeakLabelWidth, x + 4d));
         var top = -18d;
+        return new PeakMarkerInfo(left, top, $"{prefix} {FormatBytesPerSecond((long)Math.Round(peakValue, MidpointRounding.AwayFromZero))}", brush, peakValue);
+    }
+
+    private static PeakMarkerInfo BuildCombinedPeakMarker(
+        IReadOnlyList<double> first,
+        IReadOnlyList<double> second,
+        int count,
+        int peakIndex,
+        double peakValue,
+        string prefix,
+        Brush brush)
+    {
+        var normalizedMax = Math.Max(1d, peakValue);
+        for (var index = 0; index < count; index++)
+        {
+            normalizedMax = Math.Max(normalizedMax, first[index] + second[index]);
+        }
+
+        var drawableHeight = OverviewChartHeight - 1d;
+        var stepX = count > 1 ? OverviewChartWidth / (count - 1d) : OverviewChartWidth;
+        var x = count > 1 ? stepX * peakIndex : OverviewChartWidth / 2d;
+        var y = drawableHeight - (peakValue / normalizedMax * drawableHeight);
+        var left = Math.Max(0d, Math.Min(OverviewChartWidth - OverviewPeakLabelWidth, x + 4d));
+        return new PeakMarkerInfo(left, -18d, $"{prefix} {FormatBytesPerSecond((long)Math.Round(peakValue, MidpointRounding.AwayFromZero))}", brush, peakValue);
+    }
+
+    private static Brush CreateFrozenBrush(string colorHex)
+    {
         var brush = (Brush)new BrushConverter().ConvertFromString(colorHex)!;
         brush.Freeze();
-        return new PeakMarkerInfo(left, top, $"{prefix} {FormatBytesPerSecond((long)Math.Round(peakValue, MidpointRounding.AwayFromZero))}", brush, peakValue);
+        return brush;
     }
 
     private void RaiseOverviewChartProperties()

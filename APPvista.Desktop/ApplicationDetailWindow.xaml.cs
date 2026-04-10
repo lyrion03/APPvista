@@ -80,7 +80,6 @@ public partial class ApplicationDetailWindow : Window
         DataContext = null;
         ReleaseHistoryChartDrag();
         base.OnClosed(e);
-        ScheduleCleanupCollection();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -543,25 +542,6 @@ public partial class ApplicationDetailWindow : Window
         var offset = activeScrollViewer.HorizontalOffset;
         ShowHistoryChartLeftHint = offset > HistoryChartScrollHintThreshold;
         ShowHistoryChartRightHint = offset < scrollableWidth - HistoryChartScrollHintThreshold;
-    }
-
-    private void ScheduleCleanupCollection()
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            var hasOtherDetailWindows = System.Windows.Application.Current.Windows
-                .OfType<ApplicationDetailWindow>()
-                .Any(window => window != this && window.IsLoaded);
-
-            if (hasOtherDetailWindows)
-            {
-                return;
-            }
-
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-        }, DispatcherPriority.ApplicationIdle);
     }
 
     private void ApplyInitialBounds()

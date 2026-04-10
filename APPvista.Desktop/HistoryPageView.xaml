@@ -126,7 +126,19 @@
                         <TextBlock Margin="0,0,0,0" Foreground="#213B35" FontSize="30" FontWeight="SemiBold" Text="{Binding HistoryDimensionHeadline}" />
                         <TextBlock Margin="0,6,0,0" Foreground="#526057" FontSize="14" Text="下方展示所选区间的汇总卡片与按应用 Top N 榜单，便于快速定位高流量、高 I/O 和前台占用应用。" />
                     </StackPanel>
+                    <Button Grid.Column="1"
+                            Width="128"
+                            Padding="18,10"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Background="#DCEBDE"
+                            BorderBrush="#2D5E46"
+                            BorderThickness="1"
+                            Command="{Binding ShowHistoryComparisonCommand}"
+                            Cursor="Hand"
+                            Content="详细对比" />
                     <Border Grid.Column="1"
+                            Margin="140,0,0,0"
                             Padding="14,10"
                             Background="#F7F1E6"
                             BorderBrush="#DDD1BE"

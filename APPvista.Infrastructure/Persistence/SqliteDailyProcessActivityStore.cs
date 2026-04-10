@@ -120,17 +120,19 @@ ORDER BY foreground_milliseconds DESC, background_milliseconds DESC, process_nam
 
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
             using var transaction = connection.BeginTransaction();
-
-            foreach (var processName in items)
-            {
-                using var deleteCommand = connection.CreateCommand();
-                deleteCommand.Transaction = transaction;
-                deleteCommand.CommandText = @"
+            using var deleteCommand = connection.CreateCommand();
+            deleteCommand.Transaction = transaction;
+            deleteCommand.CommandText = @"
 DELETE FROM daily_process_activity
 WHERE day = $day
   AND process_name = $processName;";
-                deleteCommand.Parameters.AddWithValue("$day", normalizedDay);
-                deleteCommand.Parameters.AddWithValue("$processName", processName);
+            deleteCommand.Parameters.AddWithValue("$day", normalizedDay);
+            var processNameParameter = deleteCommand.Parameters.Add("$processName", Microsoft.Data.Sqlite.SqliteType.Text);
+            deleteCommand.Prepare();
+
+            foreach (var processName in items)
+            {
+                processNameParameter.Value = processName;
                 deleteCommand.ExecuteNonQuery();
             }
 
@@ -151,12 +153,9 @@ WHERE day = $day
 
             using var connection = SqliteMonitoringDatabase.OpenConnection(_databasePath);
             using var transaction = connection.BeginTransaction();
-
-            foreach (var summary in items)
-            {
-                using var insertCommand = connection.CreateCommand();
-                insertCommand.Transaction = transaction;
-                insertCommand.CommandText = @"
+            using var insertCommand = connection.CreateCommand();
+            insertCommand.Transaction = transaction;
+            insertCommand.CommandText = @"
 INSERT INTO daily_process_activity (
     day,
     process_name,
@@ -246,35 +245,67 @@ ON CONFLICT(day, process_name) DO UPDATE SET
     peak_io_write_bytes_per_second = excluded.peak_io_write_bytes_per_second,
     peak_io_bytes_per_second = excluded.peak_io_bytes_per_second,
     has_main_window = excluded.has_main_window;";
-                insertCommand.Parameters.AddWithValue("$day", normalizedDay);
-                insertCommand.Parameters.AddWithValue("$processName", summary.ProcessName.Trim());
-                insertCommand.Parameters.AddWithValue("$executablePath", summary.ExecutablePath ?? string.Empty);
-                insertCommand.Parameters.AddWithValue("$foregroundMilliseconds", summary.ForegroundMilliseconds);
-                insertCommand.Parameters.AddWithValue("$backgroundMilliseconds", summary.BackgroundMilliseconds);
-                insertCommand.Parameters.AddWithValue("$downloadBytes", summary.DownloadBytes);
-                insertCommand.Parameters.AddWithValue("$uploadBytes", summary.UploadBytes);
-                insertCommand.Parameters.AddWithValue("$peakDownloadBytesPerSecond", summary.PeakDownloadBytesPerSecond);
-                insertCommand.Parameters.AddWithValue("$peakUploadBytesPerSecond", summary.PeakUploadBytesPerSecond);
-                insertCommand.Parameters.AddWithValue("$foregroundCpuTotal", summary.ForegroundCpuTotal);
-                insertCommand.Parameters.AddWithValue("$foregroundWorkingSetTotal", summary.ForegroundWorkingSetTotal);
-                insertCommand.Parameters.AddWithValue("$foregroundSamples", summary.ForegroundSamples);
-                insertCommand.Parameters.AddWithValue("$backgroundCpuTotal", summary.BackgroundCpuTotal);
-                insertCommand.Parameters.AddWithValue("$backgroundWorkingSetTotal", summary.BackgroundWorkingSetTotal);
-                insertCommand.Parameters.AddWithValue("$backgroundSamples", summary.BackgroundSamples);
-                insertCommand.Parameters.AddWithValue("$peakWorkingSetBytes", summary.PeakWorkingSetBytes);
-                insertCommand.Parameters.AddWithValue("$threadCountTotal", summary.ThreadCountTotal);
-                insertCommand.Parameters.AddWithValue("$threadSamples", summary.ThreadSamples);
-                insertCommand.Parameters.AddWithValue("$peakThreadCount", summary.PeakThreadCount);
-                insertCommand.Parameters.AddWithValue("$ioReadBytes", summary.IoReadBytes);
-                insertCommand.Parameters.AddWithValue("$ioWriteBytes", summary.IoWriteBytes);
-                insertCommand.Parameters.AddWithValue("$foregroundIoOperations", summary.ForegroundIoOperations);
-                insertCommand.Parameters.AddWithValue("$backgroundIoOperations", summary.BackgroundIoOperations);
-                insertCommand.Parameters.AddWithValue("$ioReadOperations", summary.IoReadOperations);
-                insertCommand.Parameters.AddWithValue("$ioWriteOperations", summary.IoWriteOperations);
-                insertCommand.Parameters.AddWithValue("$peakIoReadBytesPerSecond", summary.PeakIoReadBytesPerSecond);
-                insertCommand.Parameters.AddWithValue("$peakIoWriteBytesPerSecond", summary.PeakIoWriteBytesPerSecond);
-                insertCommand.Parameters.AddWithValue("$peakIoBytesPerSecond", summary.PeakIoBytesPerSecond);
-                insertCommand.Parameters.AddWithValue("$hasMainWindow", summary.HasMainWindow ? 1 : 0);
+            insertCommand.Parameters.AddWithValue("$day", normalizedDay);
+            var processNameParameter = insertCommand.Parameters.Add("$processName", Microsoft.Data.Sqlite.SqliteType.Text);
+            var executablePathParameter = insertCommand.Parameters.Add("$executablePath", Microsoft.Data.Sqlite.SqliteType.Text);
+            var foregroundMillisecondsParameter = insertCommand.Parameters.Add("$foregroundMilliseconds", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var backgroundMillisecondsParameter = insertCommand.Parameters.Add("$backgroundMilliseconds", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var downloadBytesParameter = insertCommand.Parameters.Add("$downloadBytes", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var uploadBytesParameter = insertCommand.Parameters.Add("$uploadBytes", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakDownloadBytesPerSecondParameter = insertCommand.Parameters.Add("$peakDownloadBytesPerSecond", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakUploadBytesPerSecondParameter = insertCommand.Parameters.Add("$peakUploadBytesPerSecond", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var foregroundCpuTotalParameter = insertCommand.Parameters.Add("$foregroundCpuTotal", Microsoft.Data.Sqlite.SqliteType.Real);
+            var foregroundWorkingSetTotalParameter = insertCommand.Parameters.Add("$foregroundWorkingSetTotal", Microsoft.Data.Sqlite.SqliteType.Real);
+            var foregroundSamplesParameter = insertCommand.Parameters.Add("$foregroundSamples", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var backgroundCpuTotalParameter = insertCommand.Parameters.Add("$backgroundCpuTotal", Microsoft.Data.Sqlite.SqliteType.Real);
+            var backgroundWorkingSetTotalParameter = insertCommand.Parameters.Add("$backgroundWorkingSetTotal", Microsoft.Data.Sqlite.SqliteType.Real);
+            var backgroundSamplesParameter = insertCommand.Parameters.Add("$backgroundSamples", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakWorkingSetBytesParameter = insertCommand.Parameters.Add("$peakWorkingSetBytes", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var threadCountTotalParameter = insertCommand.Parameters.Add("$threadCountTotal", Microsoft.Data.Sqlite.SqliteType.Real);
+            var threadSamplesParameter = insertCommand.Parameters.Add("$threadSamples", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakThreadCountParameter = insertCommand.Parameters.Add("$peakThreadCount", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var ioReadBytesParameter = insertCommand.Parameters.Add("$ioReadBytes", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var ioWriteBytesParameter = insertCommand.Parameters.Add("$ioWriteBytes", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var foregroundIoOperationsParameter = insertCommand.Parameters.Add("$foregroundIoOperations", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var backgroundIoOperationsParameter = insertCommand.Parameters.Add("$backgroundIoOperations", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var ioReadOperationsParameter = insertCommand.Parameters.Add("$ioReadOperations", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var ioWriteOperationsParameter = insertCommand.Parameters.Add("$ioWriteOperations", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakIoReadBytesPerSecondParameter = insertCommand.Parameters.Add("$peakIoReadBytesPerSecond", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakIoWriteBytesPerSecondParameter = insertCommand.Parameters.Add("$peakIoWriteBytesPerSecond", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var peakIoBytesPerSecondParameter = insertCommand.Parameters.Add("$peakIoBytesPerSecond", Microsoft.Data.Sqlite.SqliteType.Integer);
+            var hasMainWindowParameter = insertCommand.Parameters.Add("$hasMainWindow", Microsoft.Data.Sqlite.SqliteType.Integer);
+            insertCommand.Prepare();
+
+            foreach (var summary in items)
+            {
+                processNameParameter.Value = summary.ProcessName.Trim();
+                executablePathParameter.Value = summary.ExecutablePath ?? string.Empty;
+                foregroundMillisecondsParameter.Value = summary.ForegroundMilliseconds;
+                backgroundMillisecondsParameter.Value = summary.BackgroundMilliseconds;
+                downloadBytesParameter.Value = summary.DownloadBytes;
+                uploadBytesParameter.Value = summary.UploadBytes;
+                peakDownloadBytesPerSecondParameter.Value = summary.PeakDownloadBytesPerSecond;
+                peakUploadBytesPerSecondParameter.Value = summary.PeakUploadBytesPerSecond;
+                foregroundCpuTotalParameter.Value = summary.ForegroundCpuTotal;
+                foregroundWorkingSetTotalParameter.Value = summary.ForegroundWorkingSetTotal;
+                foregroundSamplesParameter.Value = summary.ForegroundSamples;
+                backgroundCpuTotalParameter.Value = summary.BackgroundCpuTotal;
+                backgroundWorkingSetTotalParameter.Value = summary.BackgroundWorkingSetTotal;
+                backgroundSamplesParameter.Value = summary.BackgroundSamples;
+                peakWorkingSetBytesParameter.Value = summary.PeakWorkingSetBytes;
+                threadCountTotalParameter.Value = summary.ThreadCountTotal;
+                threadSamplesParameter.Value = summary.ThreadSamples;
+                peakThreadCountParameter.Value = summary.PeakThreadCount;
+                ioReadBytesParameter.Value = summary.IoReadBytes;
+                ioWriteBytesParameter.Value = summary.IoWriteBytes;
+                foregroundIoOperationsParameter.Value = summary.ForegroundIoOperations;
+                backgroundIoOperationsParameter.Value = summary.BackgroundIoOperations;
+                ioReadOperationsParameter.Value = summary.IoReadOperations;
+                ioWriteOperationsParameter.Value = summary.IoWriteOperations;
+                peakIoReadBytesPerSecondParameter.Value = summary.PeakIoReadBytesPerSecond;
+                peakIoWriteBytesPerSecondParameter.Value = summary.PeakIoWriteBytesPerSecond;
+                peakIoBytesPerSecondParameter.Value = summary.PeakIoBytesPerSecond;
+                hasMainWindowParameter.Value = summary.HasMainWindow ? 1 : 0;
                 insertCommand.ExecuteNonQuery();
             }
 

@@ -1,0 +1,294 @@
+<Window x:Class="APPvista.Desktop.HistoryComparisonWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="clr-namespace:APPvista.Desktop.Services"
+        Title="{Binding WindowTitle}"
+        Width="1280"
+        Height="860"
+        MinWidth="960"
+        MinHeight="720"
+        Background="#F5F0E6"
+        WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <services:IconPathToImageSourceConverter x:Key="IconPathToImageSourceConverter" />
+
+        <Style x:Key="SelectorToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="#FFFDF9" />
+            <Setter Property="BorderBrush" Value="#D8CEBE" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F8F1E4" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#DCEBDE" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#2D5E46" />
+                                <Setter TargetName="Root" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="22"
+                Background="#FFFDF9"
+                BorderBrush="#E2D8C8"
+                BorderThickness="1"
+                CornerRadius="26">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Foreground="#213B35"
+                               FontSize="30"
+                               FontWeight="SemiBold"
+                               Text="{Binding WindowTitle}" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="#5C6A61"
+                               FontSize="14"
+                               Text="{Binding RangeDisplay}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="#7B817B"
+                               FontSize="13"
+                               Text="{Binding SelectedApplicationsSummary}" />
+                </StackPanel>
+
+                <Grid Grid.Column="1" VerticalAlignment="Top">
+                    <ToggleButton x:Name="MetricSelectorButton"
+                                  Padding="16,10"
+                                  Background="#F7F1E6"
+                                  BorderBrush="#DDD1BE"
+                                  BorderThickness="1"
+                                  FontSize="13"
+                                  FontWeight="SemiBold"
+                                  Foreground="#5B614F"
+                                  IsChecked="{Binding IsMetricSelectorOpen, Mode=TwoWay}"
+                                  Content="展示指标" />
+                    <Popup PlacementTarget="{Binding ElementName=MetricSelectorButton}"
+                           Placement="Bottom"
+                           IsOpen="{Binding IsMetricSelectorOpen}"
+                           StaysOpen="False">
+                        <Border Margin="0,8,0,0"
+                                Padding="14"
+                                Background="#FFFDF9"
+                                BorderBrush="#D8CEBE"
+                                BorderThickness="1"
+                                CornerRadius="18">
+                            <StackPanel>
+                                <TextBlock Foreground="#213B35"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Text="选择展示指标" />
+                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding VisibleMetrics}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Margin="0,4,0,0"
+                                                      Foreground="#46534C"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      Content="{Binding DisplayName}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Padding="18"
+                Background="#15312B"
+                CornerRadius="26">
+            <StackPanel>
+                <TextBlock Foreground="#E1ECE6"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="选择要比较的应用" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#AFBEB7"
+                           FontSize="12"
+                           Text="按名称排序，默认不选。选中后下方会立刻刷新统计对比。" />
+                <ScrollViewer Margin="0,14,0,0"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              MaxHeight="220">
+                    <ItemsControl ItemsSource="{Binding AvailableApplications}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton Width="114"
+                                              Height="116"
+                                              Style="{StaticResource SelectorToggleStyle}"
+                                              IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                    <StackPanel>
+                                        <Border Width="40"
+                                                Height="40"
+                                                Margin="0,0,0,10"
+                                                HorizontalAlignment="Center"
+                                                Background="#F2ECE0"
+                                                CornerRadius="12">
+                                            <Image Width="24"
+                                                   Height="24"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
+                                        </Border>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   Foreground="#213B35"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   MaxHeight="40" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="4"
+                Padding="18"
+                Background="#FFFDF9"
+                BorderBrush="#E2D8C8"
+                BorderThickness="1"
+                CornerRadius="26">
+            <Grid>
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="#8B938B"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           Text="请选择上方应用后查看详细对比">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+                    <ItemsControl ItemsSource="{Binding ComparisonRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,14"
+                                        Padding="18"
+                                        Background="#FCF8F1"
+                                        BorderBrush="#E2D8C8"
+                                        BorderThickness="1"
+                                        CornerRadius="22">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="42"
+                                                    Height="42"
+                                                    Background="#F0E7D8"
+                                                    CornerRadius="12">
+                                                <Image Width="24"
+                                                       Height="24"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Stretch="Uniform"
+                                                       Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
+                                            </Border>
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Foreground="#213B35"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding DisplayName}" />
+                                                <TextBlock Foreground="#7A8078"
+                                                           FontSize="12"
+                                                           Text="{Binding ProcessName}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding VisibleMetrics}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border MinWidth="160"
+                                                            Margin="0,0,12,12"
+                                                            Padding="12,10"
+                                                            Background="#FFFDF9"
+                                                            BorderBrush="#DED4C5"
+                                                            BorderThickness="1"
+                                                            CornerRadius="16">
+                                                        <StackPanel>
+                                                            <TextBlock Foreground="#7A8178"
+                                                                       FontSize="12"
+                                                                       Text="{Binding Label}" />
+                                                            <TextBlock Margin="0,4,0,0"
+                                                                       Foreground="#213B35"
+                                                                       FontSize="15"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding Value}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

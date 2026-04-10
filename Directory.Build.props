@@ -1,5 +1,9 @@
 ﻿<Project>
   <PropertyGroup>
     <MSBuildEnableWorkloadResolver>false</MSBuildEnableWorkloadResolver>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
   </PropertyGroup>
 </Project>
