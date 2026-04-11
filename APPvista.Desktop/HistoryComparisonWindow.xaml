@@ -91,7 +91,7 @@
                                   FontWeight="SemiBold"
                                   Foreground="#5B614F"
                                   IsChecked="{Binding IsMetricSelectorOpen, Mode=TwoWay}"
-                                  Content="展示指标" />
+                                  Content="显示指标" />
                     <Popup PlacementTarget="{Binding ElementName=MetricSelectorButton}"
                            Placement="Bottom"
                            IsOpen="{Binding IsMetricSelectorOpen}"
@@ -106,7 +106,7 @@
                                 <TextBlock Foreground="#213B35"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Text="选择展示指标" />
+                                           Text="选择显示指标" />
                                 <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding VisibleMetrics}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -136,7 +136,7 @@
                 <TextBlock Margin="0,6,0,0"
                            Foreground="#AFBEB7"
                            FontSize="12"
-                           Text="按名称排序，默认不选。选中后下方会立刻刷新统计对比。" />
+                           Text="按名称排序，默认不选。选中后下方会立即刷新统计对比。" />
                 <ScrollViewer Margin="0,14,0,0"
                               HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto"
@@ -220,73 +220,246 @@
                             </Style.Triggers>
                         </Style>
                     </ScrollViewer.Style>
-                    <ItemsControl ItemsSource="{Binding ComparisonRows}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,14"
-                                        Padding="18"
-                                        Background="#FCF8F1"
-                                        BorderBrush="#E2D8C8"
-                                        BorderThickness="1"
-                                        CornerRadius="22">
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="42"
-                                                    Height="42"
-                                                    Background="#F0E7D8"
-                                                    CornerRadius="12">
-                                                <Image Width="24"
-                                                       Height="24"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center"
-                                                       Stretch="Uniform"
-                                                       Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
-                                            </Border>
-                                            <StackPanel Margin="12,0,0,0">
-                                                <TextBlock Foreground="#213B35"
-                                                           FontSize="18"
-                                                           FontWeight="SemiBold"
-                                                           Text="{Binding DisplayName}" />
-                                                <TextBlock Foreground="#7A8078"
-                                                           FontSize="12"
-                                                           Text="{Binding ProcessName}" />
-                                            </StackPanel>
-                                        </StackPanel>
 
-                                        <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding VisibleMetrics}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border MinWidth="160"
-                                                            Margin="0,0,12,12"
-                                                            Padding="12,10"
-                                                            Background="#FFFDF9"
-                                                            BorderBrush="#DED4C5"
-                                                            BorderThickness="1"
-                                                            CornerRadius="16">
-                                                        <StackPanel>
-                                                            <TextBlock Foreground="#7A8178"
-                                                                       FontSize="12"
-                                                                       Text="{Binding Label}" />
-                                                            <TextBlock Margin="0,4,0,0"
-                                                                       Foreground="#213B35"
-                                                                       FontSize="15"
-                                                                       FontWeight="SemiBold"
-                                                                       Text="{Binding Value}" />
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
+                    <StackPanel>
+                        <Border Padding="18"
+                                Margin="0,0,0,18"
+                                Background="#F7F1E8"
+                                BorderBrush="#E2D8C8"
+                                BorderThickness="1"
+                                CornerRadius="22">
+                            <StackPanel>
+                                <TextBlock Foreground="#213B35"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="平行坐标图" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Foreground="#6B746C"
+                                           FontSize="12"
+                                           Text="{Binding ParallelChartHint}" />
+
+                                <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding ParallelChartSeries}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,8">
+                                                <Border Width="12"
+                                                        Height="12"
+                                                        CornerRadius="6"
+                                                        Background="{Binding Stroke}"
+                                                        VerticalAlignment="Center" />
+                                                <TextBlock Margin="6,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#44514C"
+                                                           FontSize="12"
+                                                           Text="{Binding DisplayName}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Border Margin="0,12,0,0"
+                                        Padding="12"
+                                        Background="#FFFDF9"
+                                        BorderBrush="#DED4C5"
+                                        BorderThickness="1"
+                                        CornerRadius="18">
+                                    <Grid>
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#8B938B"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Text="至少选择 1 个应用和 2 个指标后才会生成图形。">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasParallelChart}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled">
+                                            <ScrollViewer.Style>
+                                                <Style TargetType="ScrollViewer">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasParallelChart}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ScrollViewer.Style>
+
+                                            <Grid Width="{Binding ParallelChartWidth}"
+                                                  Height="{Binding ParallelChartHeight}">
+                                                <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Width="1"
+                                                                    Height="{Binding Height}"
+                                                                    Background="#D7CCBC" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <ItemsControl ItemsSource="{Binding ParallelChartSeries}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Polyline Points="{Binding Points}"
+                                                                      Stroke="{Binding Stroke}"
+                                                                      StrokeThickness="2.4"
+                                                                      StrokeLineJoin="Round"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      Opacity="0.88" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding LabelLeft}" />
+                                                            <Setter Property="Canvas.Top" Value="0" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Width="88"
+                                                                  Height="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}, Path=DataContext.ParallelChartHeight}">
+                                                                <TextBlock HorizontalAlignment="Center"
+                                                                           Foreground="#213B35"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding Label}"
+                                                                           TextAlignment="Center"
+                                                                           TextWrapping="Wrap" />
+                                                                <TextBlock HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Bottom"
+                                                                           Margin="0,0,0,0"
+                                                                           Foreground="#7F867F"
+                                                                           FontSize="11"
+                                                                           Text="{Binding MinLabel}"
+                                                                           TextAlignment="Center"
+                                                                           TextWrapping="Wrap" />
+                                                                <TextBlock HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Top"
+                                                                           Margin="0,18,0,0"
+                                                                           Foreground="#7F867F"
+                                                                           FontSize="11"
+                                                                           Text="{Binding MaxLabel}"
+                                                                           TextAlignment="Center"
+                                                                           TextWrapping="Wrap" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+                                        </ScrollViewer>
+                                    </Grid>
                                 </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding ComparisonRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,14"
+                                            Padding="18"
+                                            Background="#FCF8F1"
+                                            BorderBrush="#E2D8C8"
+                                            BorderThickness="1"
+                                            CornerRadius="22">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="42"
+                                                        Height="42"
+                                                        Background="#F0E7D8"
+                                                        CornerRadius="12">
+                                                    <Image Width="24"
+                                                           Height="24"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           Stretch="Uniform"
+                                                           Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
+                                                </Border>
+                                                <StackPanel Margin="12,0,0,0">
+                                                    <TextBlock Foreground="#213B35"
+                                                               FontSize="18"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding DisplayName}" />
+                                                    <TextBlock Foreground="#7A8078"
+                                                               FontSize="12"
+                                                               Text="{Binding ProcessName}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding VisibleMetrics}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border MinWidth="160"
+                                                                Margin="0,0,12,12"
+                                                                Padding="12,10"
+                                                                Background="#FFFDF9"
+                                                                BorderBrush="#DED4C5"
+                                                                BorderThickness="1"
+                                                                CornerRadius="16">
+                                                            <StackPanel>
+                                                                <TextBlock Foreground="#7A8178"
+                                                                           FontSize="12"
+                                                                           Text="{Binding Label}" />
+                                                                <TextBlock Margin="0,4,0,0"
+                                                                           Foreground="#213B35"
+                                                                           FontSize="15"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding Value}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </ScrollViewer>
             </Grid>
         </Border>

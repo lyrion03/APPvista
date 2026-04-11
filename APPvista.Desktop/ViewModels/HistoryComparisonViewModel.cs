@@ -1,8 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using APPvista.Desktop.Services;
+using MediaBrush = System.Windows.Media.Brush;
+using MediaBrushConverter = System.Windows.Media.BrushConverter;
+using MediaSolidColorBrush = System.Windows.Media.SolidColorBrush;
+using WpfPoint = System.Windows.Point;
 
 namespace APPvista.Desktop.ViewModels;
 
@@ -10,6 +15,26 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 {
     private readonly ApplicationIconCache _applicationIconCache;
     private readonly IReadOnlyDictionary<string, string> _applicationAliases;
+    private static readonly string[] ParallelChartPalette =
+    [
+        "#2D5E46",
+        "#C26A3D",
+        "#577590",
+        "#A44A3F",
+        "#6D597A",
+        "#3A7D6B",
+        "#8D5A97",
+        "#B08968"
+    ];
+
+    private const double ParallelChartMinWidth = 620d;
+    private const double ParallelChartAxisSpacing = 144d;
+    private const double ParallelChartHeightValue = 320d;
+    private const double ParallelChartTopPadding = 32d;
+    private const double ParallelChartBottomPadding = 52d;
+    private const double ParallelChartLeftPadding = 28d;
+    private const double ParallelChartRightPadding = 28d;
+
     private bool _isMetricSelectorOpen;
     private string _windowTitle = "详细对比";
     private string _rangeDisplay = string.Empty;
@@ -26,6 +51,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         AvailableApplications = new ObservableCollection<HistoryComparisonSelectableApplicationViewModel>();
         VisibleMetrics = new ObservableCollection<HistoryComparisonMetricOptionViewModel>();
         ComparisonRows = new ObservableCollection<HistoryComparisonApplicationRowViewModel>();
+        ParallelChartAxes = new ObservableCollection<HistoryComparisonParallelAxisViewModel>();
+        ParallelChartSeries = new ObservableCollection<HistoryComparisonParallelSeriesViewModel>();
 
         ToggleMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = !IsMetricSelectorOpen);
         CloseMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = false);
@@ -37,6 +64,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public ObservableCollection<HistoryComparisonSelectableApplicationViewModel> AvailableApplications { get; }
     public ObservableCollection<HistoryComparisonMetricOptionViewModel> VisibleMetrics { get; }
     public ObservableCollection<HistoryComparisonApplicationRowViewModel> ComparisonRows { get; }
+    public ObservableCollection<HistoryComparisonParallelAxisViewModel> ParallelChartAxes { get; }
+    public ObservableCollection<HistoryComparisonParallelSeriesViewModel> ParallelChartSeries { get; }
 
     public ICommand ToggleMetricSelectorCommand { get; }
     public ICommand CloseMetricSelectorCommand { get; }
@@ -60,6 +89,19 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     }
 
     public bool HasSelectedApplications => ComparisonRows.Count > 0;
+    public bool HasParallelChartSelection => ParallelChartSeries.Count > 0;
+    public bool HasParallelChart => ParallelChartAxes.Count >= 2 && ParallelChartSeries.Count > 0;
+    public double ParallelChartWidth => Math.Max(
+        ParallelChartMinWidth,
+        ParallelChartLeftPadding + ParallelChartRightPadding + Math.Max(0, ParallelChartAxes.Count - 1) * ParallelChartAxisSpacing);
+    public double ParallelChartHeight => ParallelChartHeightValue;
+    public string ParallelChartHint =>
+        !HasParallelChartSelection
+            ? "选择应用后可查看平行坐标图。"
+            : ParallelChartAxes.Count < 2
+                ? "至少勾选两个指标后才能生成平行坐标图。"
+                : "各轴已按当前选中应用归一化，适合比较指标结构差异。";
+
     public string SelectedApplicationsSummary =>
         $"已选择 {ComparisonRows.Count} / {AvailableApplications.Count} 个应用";
 
@@ -75,6 +117,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
         AvailableApplications.Clear();
         ComparisonRows.Clear();
+        ParallelChartAxes.Clear();
+        ParallelChartSeries.Clear();
 
         foreach (var item in applicationAggregates
                      .Where(static item => !string.IsNullOrWhiteSpace(item.ProcessName))
@@ -149,10 +193,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             .Select(static item => item.Metric)
             .ToArray();
 
-        var rows = AvailableApplications
+        var selectedApplications = AvailableApplications
             .Where(static item => item.IsSelected)
             .OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var rows = selectedApplications
             .Select(item => new HistoryComparisonApplicationRowViewModel(
                 item.DisplayName,
                 item.ProcessName,
@@ -169,8 +216,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 left.IconSourcePath == right.IconSourcePath &&
                 MetricsEqual(left.VisibleMetrics, right.VisibleMetrics));
 
+        RefreshParallelChart(selectedApplications, selectedMetrics);
+
         RaisePropertyChanged(nameof(HasSelectedApplications));
         RaisePropertyChanged(nameof(SelectedApplicationsSummary));
+        RaisePropertyChanged(nameof(HasParallelChart));
+        RaisePropertyChanged(nameof(HasParallelChartSelection));
+        RaisePropertyChanged(nameof(ParallelChartWidth));
+        RaisePropertyChanged(nameof(ParallelChartHint));
     }
 
     private IReadOnlyList<HistoryComparisonMetricDisplayItem> BuildMetricItems(
@@ -202,6 +255,119 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         }
 
         return items;
+    }
+
+    private void RefreshParallelChart(
+        IReadOnlyList<HistoryComparisonSelectableApplicationViewModel> selectedApplications,
+        IReadOnlyList<HistoryComparisonMetric> selectedMetrics)
+    {
+        if (selectedApplications.Count == 0 || selectedMetrics.Count == 0)
+        {
+            ParallelChartAxes.Clear();
+            ParallelChartSeries.Clear();
+            return;
+        }
+
+        var metrics = selectedMetrics
+            .Select(metric => BuildParallelMetricDescriptor(metric, selectedApplications))
+            .Where(static item => item is not null)
+            .Cast<ParallelMetricDescriptor>()
+            .ToList();
+
+        if (metrics.Count == 0)
+        {
+            ParallelChartAxes.Clear();
+            ParallelChartSeries.Clear();
+            return;
+        }
+
+        var chartHeight = ParallelChartHeight;
+        var plotTop = ParallelChartTopPadding;
+        var plotBottom = chartHeight - ParallelChartBottomPadding;
+        var plotHeight = Math.Max(1d, plotBottom - plotTop);
+
+        var axes = new List<HistoryComparisonParallelAxisViewModel>(metrics.Count);
+        for (var index = 0; index < metrics.Count; index++)
+        {
+            var descriptor = metrics[index];
+            var x = ParallelChartLeftPadding + index * ParallelChartAxisSpacing;
+
+            axes.Add(new HistoryComparisonParallelAxisViewModel(
+                descriptor.DisplayName,
+                descriptor.MinLabel,
+                descriptor.MaxLabel,
+                x,
+                plotTop,
+                plotHeight,
+                x - 44d));
+        }
+
+        var series = new List<HistoryComparisonParallelSeriesViewModel>(selectedApplications.Count);
+        for (var applicationIndex = 0; applicationIndex < selectedApplications.Count; applicationIndex++)
+        {
+            var application = selectedApplications[applicationIndex];
+            var points = new PointCollection(metrics.Count);
+
+            for (var metricIndex = 0; metricIndex < metrics.Count; metricIndex++)
+            {
+                var descriptor = metrics[metricIndex];
+                var normalized = descriptor.Normalizer(application.Aggregate);
+                var y = plotBottom - (normalized * plotHeight);
+                points.Add(new WpfPoint(axes[metricIndex].X, y));
+            }
+
+            series.Add(new HistoryComparisonParallelSeriesViewModel(
+                application.DisplayName,
+                CreateFrozenBrush(ParallelChartPalette[applicationIndex % ParallelChartPalette.Length]),
+                points));
+        }
+
+        SyncObservableCollection(
+            ParallelChartAxes,
+            axes,
+            static (left, right) =>
+                left.Label == right.Label &&
+                left.MinLabel == right.MinLabel &&
+                left.MaxLabel == right.MaxLabel &&
+                left.X.Equals(right.X) &&
+                left.Y.Equals(right.Y) &&
+                left.Height.Equals(right.Height) &&
+                left.LabelLeft.Equals(right.LabelLeft));
+
+        SyncObservableCollection(
+            ParallelChartSeries,
+            series,
+            static (left, right) =>
+                left.DisplayName == right.DisplayName &&
+                Equals(left.Stroke, right.Stroke) &&
+                PointCollectionsEqual(left.Points, right.Points));
+    }
+
+    private ParallelMetricDescriptor? BuildParallelMetricDescriptor(
+        HistoryComparisonMetric metric,
+        IReadOnlyList<HistoryComparisonSelectableApplicationViewModel> selectedApplications)
+    {
+        var values = selectedApplications
+            .Select(item => GetMetricNumericValue(item.Aggregate, metric))
+            .ToArray();
+
+        if (values.Length == 0)
+        {
+            return null;
+        }
+
+        var min = values.Min();
+        var max = values.Max();
+        var range = max - min;
+        Func<HistoryApplicationAggregate, double> normalizer = range <= 0d
+            ? static _ => 0.5d
+            : aggregate => Math.Clamp((GetMetricNumericValue(aggregate, metric) - min) / range, 0d, 1d);
+
+        return new ParallelMetricDescriptor(
+            GetMetricDisplayName(metric),
+            FormatMetricAxisValue(metric, min),
+            FormatMetricAxisValue(metric, max),
+            normalizer);
     }
 
     private string BuildDisplayName(string processName, string executablePath)
@@ -266,6 +432,69 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         }
     }
 
+    private static double GetMetricNumericValue(HistoryApplicationAggregate aggregate, HistoryComparisonMetric metric) =>
+        metric switch
+        {
+            HistoryComparisonMetric.ActiveDays => aggregate.ActiveDays,
+            HistoryComparisonMetric.ForegroundDuration => aggregate.ForegroundMilliseconds,
+            HistoryComparisonMetric.BackgroundDuration => aggregate.BackgroundMilliseconds,
+            HistoryComparisonMetric.ForegroundRatio => aggregate.ForegroundRatio * 100d,
+            HistoryComparisonMetric.AverageWorkingSet => aggregate.AverageWorkingSetBytes,
+            HistoryComparisonMetric.AverageCpu => aggregate.AverageCpu,
+            HistoryComparisonMetric.AverageThreadCount => aggregate.AverageThreadCount,
+            HistoryComparisonMetric.PeakWorkingSet => aggregate.PeakWorkingSetBytes,
+            HistoryComparisonMetric.PeakThreadCount => aggregate.PeakThreadCount,
+            HistoryComparisonMetric.ThreadPeakMeanRatio => aggregate.ThreadPeakMeanRatio,
+            HistoryComparisonMetric.TotalTraffic => aggregate.TotalTrafficBytes,
+            HistoryComparisonMetric.PeakTraffic => aggregate.PeakTrafficBytesPerSecond,
+            HistoryComparisonMetric.TotalIo => aggregate.TotalIoBytes,
+            HistoryComparisonMetric.PeakIo => aggregate.PeakIoBytesPerSecond,
+            HistoryComparisonMetric.AverageIops => aggregate.AverageIops,
+            _ => 0d
+        };
+
+    private static string GetMetricDisplayName(HistoryComparisonMetric metric) =>
+        metric switch
+        {
+            HistoryComparisonMetric.ActiveDays => "活跃天数",
+            HistoryComparisonMetric.ForegroundDuration => "前台时长",
+            HistoryComparisonMetric.BackgroundDuration => "后台时长",
+            HistoryComparisonMetric.ForegroundRatio => "前台占比",
+            HistoryComparisonMetric.AverageWorkingSet => "平均工作集",
+            HistoryComparisonMetric.AverageCpu => "平均 CPU",
+            HistoryComparisonMetric.AverageThreadCount => "平均线程",
+            HistoryComparisonMetric.PeakWorkingSet => "工作集峰值",
+            HistoryComparisonMetric.PeakThreadCount => "线程峰值",
+            HistoryComparisonMetric.ThreadPeakMeanRatio => "线程峰均比",
+            HistoryComparisonMetric.TotalTraffic => "总流量",
+            HistoryComparisonMetric.PeakTraffic => "网络峰值",
+            HistoryComparisonMetric.TotalIo => "I/O 总量",
+            HistoryComparisonMetric.PeakIo => "I/O 峰值",
+            HistoryComparisonMetric.AverageIops => "平均 IOPS",
+            _ => string.Empty
+        };
+
+    private static string FormatMetricAxisValue(HistoryComparisonMetric metric, double value) =>
+        metric switch
+        {
+            HistoryComparisonMetric.ActiveDays => $"{Math.Round(value, MidpointRounding.AwayFromZero):0} 天",
+            HistoryComparisonMetric.ForegroundDuration => FormatDuration((long)Math.Round(value, MidpointRounding.AwayFromZero)),
+            HistoryComparisonMetric.BackgroundDuration => FormatDuration((long)Math.Round(value, MidpointRounding.AwayFromZero)),
+            HistoryComparisonMetric.ForegroundRatio => $"{value:F1}%",
+            HistoryComparisonMetric.AverageWorkingSet => FormatBytes(value),
+            HistoryComparisonMetric.AverageCpu => $"{value:F1}%",
+            HistoryComparisonMetric.AverageThreadCount => value.ToString("F1", CultureInfo.InvariantCulture),
+            HistoryComparisonMetric.PeakWorkingSet => FormatBytes(value),
+            HistoryComparisonMetric.PeakThreadCount => Math.Round(value, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
+            HistoryComparisonMetric.ThreadPeakMeanRatio => value.ToString("F2", CultureInfo.InvariantCulture) + "x",
+            HistoryComparisonMetric.TotalTraffic => FormatBytes(value),
+            HistoryComparisonMetric.PeakTraffic => FormatBytesPerSecond((long)Math.Round(value, MidpointRounding.AwayFromZero)),
+            HistoryComparisonMetric.TotalIo => FormatBytes(value),
+            HistoryComparisonMetric.PeakIo => FormatBytesPerSecond((long)Math.Round(value, MidpointRounding.AwayFromZero)),
+            HistoryComparisonMetric.AverageIops => value.ToString("F1", CultureInfo.InvariantCulture),
+            _ => value.ToString("F1", CultureInfo.InvariantCulture)
+        };
+
     private static string FormatDuration(long milliseconds)
     {
         if (milliseconds <= 0)
@@ -295,6 +524,31 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     }
 
     private static string FormatBytes(long bytes) => FormatBytes((double)bytes);
+
+    private static MediaBrush CreateFrozenBrush(string hexColor)
+    {
+        var brush = (MediaSolidColorBrush)new MediaBrushConverter().ConvertFromInvariantString(hexColor)!;
+        brush.Freeze();
+        return brush;
+    }
+
+    private static bool PointCollectionsEqual(PointCollection left, PointCollection right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.Count; index++)
+        {
+            if (!left[index].Equals(right[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public sealed class HistoryComparisonSelectableApplicationViewModel : ObservableObject
     {
@@ -367,7 +621,56 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         public IReadOnlyList<HistoryComparisonMetricDisplayItem> VisibleMetrics { get; }
     }
 
+    public sealed class HistoryComparisonParallelAxisViewModel
+    {
+        public HistoryComparisonParallelAxisViewModel(
+            string label,
+            string minLabel,
+            string maxLabel,
+            double x,
+            double y,
+            double height,
+            double labelLeft)
+        {
+            Label = label;
+            MinLabel = minLabel;
+            MaxLabel = maxLabel;
+            X = x;
+            Y = y;
+            Height = height;
+            LabelLeft = labelLeft;
+        }
+
+        public string Label { get; }
+        public string MinLabel { get; }
+        public string MaxLabel { get; }
+        public double X { get; }
+        public double Y { get; }
+        public double Height { get; }
+        public double LabelLeft { get; }
+    }
+
+    public sealed class HistoryComparisonParallelSeriesViewModel
+    {
+        public HistoryComparisonParallelSeriesViewModel(string displayName, MediaBrush stroke, PointCollection points)
+        {
+            DisplayName = displayName;
+            Stroke = stroke;
+            Points = points;
+        }
+
+        public string DisplayName { get; }
+        public MediaBrush Stroke { get; }
+        public PointCollection Points { get; }
+    }
+
     public readonly record struct HistoryComparisonMetricDisplayItem(string Label, string Value);
+
+    private sealed record ParallelMetricDescriptor(
+        string DisplayName,
+        string MinLabel,
+        string MaxLabel,
+        Func<HistoryApplicationAggregate, double> Normalizer);
 
     public enum HistoryComparisonMetric
     {

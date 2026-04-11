@@ -141,7 +141,9 @@ public sealed class ProcessSnapshotProvider : IProcessSnapshotProvider
                             ? TryGetWorkingSetFast(processId, out var memoryUsage)
                             : TryGetMemoryUsage(processId, out memoryUsage);
                         var ioUsage = lightweight ? IoUsage.Empty : GetIoUsage(processId, now, out ioAvailable);
-                        var hasMainWindow = !lightweight && windowProcessIds is not null && windowProcessIds.Contains(processId);
+                        var hasMainWindow = !lightweight && (
+                            (windowProcessIds is not null && windowProcessIds.Contains(processId)) ||
+                            HasMainWindow(process));
                         var threadCount = lightweight ? 0 : TryGetThreadCount(processId, threadCountsByPid, out threadCountAvailable);
                         var isComplete = lightweight
                             ? memoryUsageAvailable
@@ -550,6 +552,18 @@ public sealed class ProcessSnapshotProvider : IProcessSnapshotProvider
 
         available = false;
         return 0;
+    }
+
+    private static bool HasMainWindow(Process process)
+    {
+        try
+        {
+            return process.MainWindowHandle != nint.Zero;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static HashSet<int> GetWindowProcessIds()
