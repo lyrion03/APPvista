@@ -129,6 +129,12 @@
                 Background="#15312B"
                 CornerRadius="26">
             <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
                 <TextBlock Foreground="#E1ECE6"
                            FontSize="18"
                            FontWeight="SemiBold"
@@ -137,7 +143,23 @@
                            Foreground="#AFBEB7"
                            FontSize="12"
                            Text="按名称排序，默认不选。选中后下方会立即刷新统计对比。" />
-                <ScrollViewer Margin="0,14,0,0"
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Padding="12,6"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Top"
+                            Background="#21483D"
+                            BorderBrush="#6EA08F"
+                            BorderThickness="1"
+                            Cursor="Hand"
+                            Command="{Binding ToggleAllApplicationsCommand}"
+                            Content="{Binding ToggleAllApplicationsText}"
+                            Foreground="#E8F4EE"
+                            FontSize="12"
+                            FontWeight="SemiBold" />
+                </Grid>
+                <ScrollViewer x:Name="ApplicationSelectorScrollViewer"
+                              Margin="0,14,0,0"
                               HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto"
                               MaxHeight="220">
@@ -152,6 +174,7 @@
                                 <ToggleButton Width="114"
                                               Height="116"
                                               Style="{StaticResource SelectorToggleStyle}"
+                                              PreviewMouseLeftButtonDown="ApplicationSelectorToggle_OnPreviewMouseLeftButtonDown"
                                               IsChecked="{Binding IsSelected, Mode=TwoWay}">
                                     <StackPanel>
                                         <Border Width="40"
@@ -208,7 +231,8 @@
                     </TextBlock.Style>
                 </TextBlock>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                <ScrollViewer x:Name="ComparisonContentScrollViewer"
+                              VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <ScrollViewer.Style>
                         <Style TargetType="ScrollViewer">
@@ -246,18 +270,49 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,12,8">
-                                                <Border Width="12"
-                                                        Height="12"
-                                                        CornerRadius="6"
-                                                        Background="{Binding Stroke}"
-                                                        VerticalAlignment="Center" />
-                                                <TextBlock Margin="6,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="#44514C"
-                                                           FontSize="12"
-                                                           Text="{Binding DisplayName}" />
-                                            </StackPanel>
+                                            <Border Margin="0,0,12,8"
+                                                    Padding="10,6"
+                                                    Background="{Binding LegendBackground}"
+                                                    BorderBrush="{Binding LegendBorderBrush}"
+                                                    CornerRadius="14"
+                                                    Cursor="Hand"
+                                                    Opacity="{Binding LegendOpacity}"
+                                                    MouseEnter="ParallelChartSeriesElement_OnMouseEnter"
+                                                    MouseLeave="ParallelChartSeriesElement_OnMouseLeave">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="BorderThickness" Value="1" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                                <Setter Property="BorderThickness" Value="2" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="12"
+                                                            Height="12"
+                                                            CornerRadius="6"
+                                                            Background="{Binding Stroke}"
+                                                            VerticalAlignment="Center" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#44514C"
+                                                               FontSize="12"
+                                                               Text="{Binding DisplayName}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontWeight" Value="Normal" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -287,7 +342,9 @@
                                             </TextBlock.Style>
                                         </TextBlock>
 
-                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                        <ScrollViewer x:Name="ParallelChartScrollViewer"
+                                                      HorizontalScrollBarVisibility="Auto"
+                                                      PreviewMouseWheel="ParallelChartScrollViewer_OnPreviewMouseWheel"
                                                       VerticalScrollBarVisibility="Disabled">
                                             <ScrollViewer.Style>
                                                 <Style TargetType="ScrollViewer">
@@ -301,7 +358,10 @@
                                             </ScrollViewer.Style>
 
                                             <Grid Width="{Binding ParallelChartWidth}"
-                                                  Height="{Binding ParallelChartHeight}">
+                                                  Height="{Binding ParallelChartHeight}"
+                                                  Background="Transparent"
+                                                  MouseMove="ParallelChartSurface_OnMouseMove"
+                                                  MouseLeave="ParallelChartSurface_OnMouseLeave">
                                                 <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
@@ -331,13 +391,78 @@
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Polyline Points="{Binding Points}"
-                                                                      Stroke="{Binding Stroke}"
-                                                                      StrokeThickness="2.4"
-                                                                      StrokeLineJoin="Round"
-                                                                      StrokeStartLineCap="Round"
-                                                                      StrokeEndLineCap="Round"
-                                                                      Opacity="0.88" />
+                                                            <Grid>
+                                                                <Polyline Points="{Binding Points}"
+                                                                          Stroke="Transparent"
+                                                                          StrokeThickness="18"
+                                                                          StrokeLineJoin="Round"
+                                                                          StrokeStartLineCap="Round"
+                                                                          StrokeEndLineCap="Round"
+                                                                          MouseEnter="ParallelChartSeriesElement_OnMouseEnter"
+                                                                          MouseLeave="ParallelChartSeriesElement_OnMouseLeave" />
+                                                                <Polyline Points="{Binding Points}"
+                                                                          Stroke="{Binding Stroke}"
+                                                                          StrokeThickness="{Binding StrokeThickness}"
+                                                                          StrokeLineJoin="Round"
+                                                                          StrokeStartLineCap="Round"
+                                                                          StrokeEndLineCap="Round"
+                                                                          Opacity="{Binding Opacity}"
+                                                                          IsHitTestVisible="False" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Ellipse Width="8"
+                                                                     Height="8"
+                                                                     Margin="-4,-4,0,0"
+                                                                     Fill="#FFFDF9"
+                                                                     Stroke="#213B35"
+                                                                     StrokeThickness="2"
+                                                                     IsHitTestVisible="False" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding LabelLeft}" />
+                                                            <Setter Property="Canvas.Top" Value="{Binding LabelTop}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Padding="6,3"
+                                                                    Background="#FFFDF9"
+                                                                    BorderBrush="#D8CEBE"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="10"
+                                                                    IsHitTestVisible="False">
+                                                                <TextBlock Foreground="#213B35"
+                                                                           FontSize="11"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding Value}" />
+                                                            </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>

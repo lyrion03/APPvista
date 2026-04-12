@@ -30,7 +30,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     private const double ParallelChartMinWidth = 620d;
     private const double ParallelChartAxisSpacing = 144d;
     private const double ParallelChartHeightValue = 320d;
-    private const double ParallelChartTopPadding = 32d;
+    private const double ParallelChartTopPadding = 52d;
     private const double ParallelChartBottomPadding = 52d;
     private const double ParallelChartLeftPadding = 28d;
     private const double ParallelChartRightPadding = 28d;
@@ -53,9 +53,11 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         ComparisonRows = new ObservableCollection<HistoryComparisonApplicationRowViewModel>();
         ParallelChartAxes = new ObservableCollection<HistoryComparisonParallelAxisViewModel>();
         ParallelChartSeries = new ObservableCollection<HistoryComparisonParallelSeriesViewModel>();
+        HighlightedParallelMarkers = new ObservableCollection<HistoryComparisonParallelMarkerViewModel>();
 
         ToggleMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = !IsMetricSelectorOpen);
         CloseMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = false);
+        ToggleAllApplicationsCommand = new RelayCommand(ToggleAllApplications);
 
         InitializeMetricOptions();
         Load(windowTitle, rangeDisplay, applicationAggregates);
@@ -66,9 +68,11 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public ObservableCollection<HistoryComparisonApplicationRowViewModel> ComparisonRows { get; }
     public ObservableCollection<HistoryComparisonParallelAxisViewModel> ParallelChartAxes { get; }
     public ObservableCollection<HistoryComparisonParallelSeriesViewModel> ParallelChartSeries { get; }
+    public ObservableCollection<HistoryComparisonParallelMarkerViewModel> HighlightedParallelMarkers { get; }
 
     public ICommand ToggleMetricSelectorCommand { get; }
     public ICommand CloseMetricSelectorCommand { get; }
+    public ICommand ToggleAllApplicationsCommand { get; }
 
     public string WindowTitle
     {
@@ -89,6 +93,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     }
 
     public bool HasSelectedApplications => ComparisonRows.Count > 0;
+    public bool AllApplicationsSelected => AvailableApplications.Count > 0 && AvailableApplications.All(static item => item.IsSelected);
+    public string ToggleAllApplicationsText => AllApplicationsSelected ? "全不选" : "全选";
     public bool HasParallelChartSelection => ParallelChartSeries.Count > 0;
     public bool HasParallelChart => ParallelChartAxes.Count >= 2 && ParallelChartSeries.Count > 0;
     public double ParallelChartWidth => Math.Max(
@@ -119,6 +125,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         ComparisonRows.Clear();
         ParallelChartAxes.Clear();
         ParallelChartSeries.Clear();
+        HighlightedParallelMarkers.Clear();
 
         foreach (var item in applicationAggregates
                      .Where(static item => !string.IsNullOrWhiteSpace(item.ProcessName))
@@ -132,6 +139,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
         RefreshComparisonRows();
         RaisePropertyChanged(nameof(SelectedApplicationsSummary));
+        RaisePropertyChanged(nameof(AllApplicationsSelected));
+        RaisePropertyChanged(nameof(ToggleAllApplicationsText));
     }
 
     private void InitializeMetricOptions()
@@ -186,6 +195,15 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         RefreshComparisonRows();
     }
 
+    private void ToggleAllApplications()
+    {
+        var shouldSelect = !AllApplicationsSelected;
+        foreach (var application in AvailableApplications)
+        {
+            application.IsSelected = shouldSelect;
+        }
+    }
+
     private void RefreshComparisonRows()
     {
         var selectedMetrics = VisibleMetrics
@@ -220,6 +238,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
         RaisePropertyChanged(nameof(HasSelectedApplications));
         RaisePropertyChanged(nameof(SelectedApplicationsSummary));
+        RaisePropertyChanged(nameof(AllApplicationsSelected));
+        RaisePropertyChanged(nameof(ToggleAllApplicationsText));
         RaisePropertyChanged(nameof(HasParallelChart));
         RaisePropertyChanged(nameof(HasParallelChartSelection));
         RaisePropertyChanged(nameof(ParallelChartWidth));
@@ -265,6 +285,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         {
             ParallelChartAxes.Clear();
             ParallelChartSeries.Clear();
+            HighlightedParallelMarkers.Clear();
             return;
         }
 
@@ -278,6 +299,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         {
             ParallelChartAxes.Clear();
             ParallelChartSeries.Clear();
+            HighlightedParallelMarkers.Clear();
             return;
         }
 
@@ -307,19 +329,30 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         {
             var application = selectedApplications[applicationIndex];
             var points = new PointCollection(metrics.Count);
+            var displayMetrics = BuildMetricItems(application.Aggregate, selectedMetrics);
+            var markers = new List<HistoryComparisonParallelMarkerViewModel>(metrics.Count);
 
             for (var metricIndex = 0; metricIndex < metrics.Count; metricIndex++)
             {
                 var descriptor = metrics[metricIndex];
                 var normalized = descriptor.Normalizer(application.Aggregate);
                 var y = plotBottom - (normalized * plotHeight);
-                points.Add(new WpfPoint(axes[metricIndex].X, y));
+                var point = new WpfPoint(axes[metricIndex].X, y);
+                points.Add(point);
+                var value = metricIndex < displayMetrics.Count ? displayMetrics[metricIndex].Value : string.Empty;
+                markers.Add(new HistoryComparisonParallelMarkerViewModel(
+                    axes[metricIndex].X,
+                    y,
+                    value,
+                    axes[metricIndex].X + 8d,
+                    Math.Max(0d, Math.Min(chartHeight - 24d, y + (metricIndex % 2 == 0 ? -24d : 6d)))));
             }
 
             series.Add(new HistoryComparisonParallelSeriesViewModel(
                 application.DisplayName,
                 CreateFrozenBrush(ParallelChartPalette[applicationIndex % ParallelChartPalette.Length]),
-                points));
+                points,
+                markers));
         }
 
         SyncObservableCollection(
@@ -341,6 +374,61 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 left.DisplayName == right.DisplayName &&
                 Equals(left.Stroke, right.Stroke) &&
                 PointCollectionsEqual(left.Points, right.Points));
+
+        ApplyParallelSeriesHighlight(null);
+    }
+
+    public void HighlightParallelSeries(string? displayName)
+    {
+        ApplyParallelSeriesHighlight(displayName);
+    }
+
+    public void ClearParallelSeriesHighlight()
+    {
+        ApplyParallelSeriesHighlight(null);
+    }
+
+    public void HighlightNearestParallelSeries(WpfPoint position, double maxDistance)
+    {
+        HistoryComparisonParallelSeriesViewModel? nearestSeries = null;
+        var bestDistance = maxDistance;
+
+        foreach (var series in ParallelChartSeries)
+        {
+            var distance = GetDistanceToSeries(position, series.Points);
+            if (distance <= bestDistance)
+            {
+                bestDistance = distance;
+                nearestSeries = series;
+            }
+        }
+
+        ApplyParallelSeriesHighlight(nearestSeries?.DisplayName);
+    }
+
+    private void ApplyParallelSeriesHighlight(string? displayName)
+    {
+        var hasHighlight = !string.IsNullOrWhiteSpace(displayName);
+        foreach (var series in ParallelChartSeries)
+        {
+            series.SetHighlightState(
+                isHighlighted: hasHighlight && string.Equals(series.DisplayName, displayName, StringComparison.Ordinal),
+                dimOthers: hasHighlight);
+        }
+
+        var highlightedSeries = hasHighlight
+            ? ParallelChartSeries.FirstOrDefault(item => string.Equals(item.DisplayName, displayName, StringComparison.Ordinal))
+            : null;
+
+        SyncObservableCollection(
+            HighlightedParallelMarkers,
+            highlightedSeries?.Markers ?? Array.Empty<HistoryComparisonParallelMarkerViewModel>(),
+            static (left, right) =>
+                left.X.Equals(right.X) &&
+                left.Y.Equals(right.Y) &&
+                left.Value == right.Value &&
+                left.LabelLeft.Equals(right.LabelLeft) &&
+                left.LabelTop.Equals(right.LabelTop));
     }
 
     private ParallelMetricDescriptor? BuildParallelMetricDescriptor(
@@ -550,6 +638,44 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         return true;
     }
 
+    private static double GetDistanceToSeries(WpfPoint position, PointCollection points)
+    {
+        if (points.Count == 0)
+        {
+            return double.MaxValue;
+        }
+
+        var bestDistance = GetDistance(position, points[0]);
+        for (var index = 1; index < points.Count; index++)
+        {
+            bestDistance = Math.Min(bestDistance, GetDistanceToSegment(position, points[index - 1], points[index]));
+        }
+
+        return bestDistance;
+    }
+
+    private static double GetDistanceToSegment(WpfPoint point, WpfPoint start, WpfPoint end)
+    {
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        if (Math.Abs(dx) < double.Epsilon && Math.Abs(dy) < double.Epsilon)
+        {
+            return GetDistance(point, start);
+        }
+
+        var t = ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / (dx * dx + dy * dy);
+        t = Math.Clamp(t, 0d, 1d);
+        var projection = new WpfPoint(start.X + t * dx, start.Y + t * dy);
+        return GetDistance(point, projection);
+    }
+
+    private static double GetDistance(WpfPoint left, WpfPoint right)
+    {
+        var dx = left.X - right.X;
+        var dy = left.Y - right.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
     public sealed class HistoryComparisonSelectableApplicationViewModel : ObservableObject
     {
         private bool _isSelected;
@@ -650,18 +776,106 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         public double LabelLeft { get; }
     }
 
-    public sealed class HistoryComparisonParallelSeriesViewModel
+    public sealed class HistoryComparisonParallelSeriesViewModel : ObservableObject
     {
-        public HistoryComparisonParallelSeriesViewModel(string displayName, MediaBrush stroke, PointCollection points)
+        private double _strokeThickness = 2.4d;
+        private double _opacity = 0.88d;
+        private bool _isHighlighted;
+        private double _legendOpacity = 1d;
+        private MediaBrush _legendBackground;
+        private MediaBrush _legendBorderBrush;
+
+        public HistoryComparisonParallelSeriesViewModel(
+            string displayName,
+            MediaBrush stroke,
+            PointCollection points,
+            IReadOnlyList<HistoryComparisonParallelMarkerViewModel> markers)
         {
             DisplayName = displayName;
             Stroke = stroke;
             Points = points;
+            Markers = markers;
+            _legendBackground = CreateFrozenBrush("#FFFDF9");
+            _legendBorderBrush = CreateFrozenBrush("#D8CEBE");
         }
 
         public string DisplayName { get; }
         public MediaBrush Stroke { get; }
         public PointCollection Points { get; }
+        public IReadOnlyList<HistoryComparisonParallelMarkerViewModel> Markers { get; }
+        public double StrokeThickness
+        {
+            get => _strokeThickness;
+            private set => SetProperty(ref _strokeThickness, value);
+        }
+
+        public double Opacity
+        {
+            get => _opacity;
+            private set => SetProperty(ref _opacity, value);
+        }
+
+        public bool IsHighlighted
+        {
+            get => _isHighlighted;
+            private set => SetProperty(ref _isHighlighted, value);
+        }
+
+        public double LegendOpacity
+        {
+            get => _legendOpacity;
+            private set => SetProperty(ref _legendOpacity, value);
+        }
+
+        public MediaBrush LegendBackground
+        {
+            get => _legendBackground;
+            private set => SetProperty(ref _legendBackground, value);
+        }
+
+        public MediaBrush LegendBorderBrush
+        {
+            get => _legendBorderBrush;
+            private set => SetProperty(ref _legendBorderBrush, value);
+        }
+
+        public void SetHighlightState(bool isHighlighted, bool dimOthers)
+        {
+            IsHighlighted = isHighlighted;
+            if (!dimOthers)
+            {
+                StrokeThickness = 2.4d;
+                Opacity = 0.88d;
+                LegendOpacity = 1d;
+                LegendBackground = CreateFrozenBrush("#FFFDF9");
+                LegendBorderBrush = CreateFrozenBrush("#D8CEBE");
+                return;
+            }
+
+            StrokeThickness = isHighlighted ? 4d : 1.6d;
+            Opacity = isHighlighted ? 1d : 0.22d;
+            LegendOpacity = isHighlighted ? 1d : 0.45d;
+            LegendBackground = isHighlighted ? CreateFrozenBrush("#EEF5F0") : CreateFrozenBrush("#FFFDF9");
+            LegendBorderBrush = isHighlighted ? Stroke : CreateFrozenBrush("#D8CEBE");
+        }
+    }
+
+    public sealed class HistoryComparisonParallelMarkerViewModel
+    {
+        public HistoryComparisonParallelMarkerViewModel(double x, double y, string value, double labelLeft, double labelTop)
+        {
+            X = x;
+            Y = y;
+            Value = value;
+            LabelLeft = labelLeft;
+            LabelTop = labelTop;
+        }
+
+        public double X { get; }
+        public double Y { get; }
+        public string Value { get; }
+        public double LabelLeft { get; }
+        public double LabelTop { get; }
     }
 
     public readonly record struct HistoryComparisonMetricDisplayItem(string Label, string Value);
