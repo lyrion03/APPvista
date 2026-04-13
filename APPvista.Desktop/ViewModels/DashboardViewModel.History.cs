@@ -230,10 +230,7 @@ public sealed partial class DashboardViewModel
         if (_historyComparisonWindow?.DataContext is HistoryComparisonViewModel existingViewModel)
         {
             existingViewModel.Load(windowTitle, rangeDisplay, applicationRecords);
-            if (_historyComparisonWindow.WindowState == WindowState.Minimized)
-            {
-                _historyComparisonWindow.WindowState = WindowState.Normal;
-            }
+            _historyComparisonWindow.WindowState = WindowState.Maximized;
 
             _historyComparisonWindow.Show();
             _historyComparisonWindow.Activate();
@@ -251,7 +248,8 @@ public sealed partial class DashboardViewModel
             rangeDisplay);
         var comparisonWindow = new APPvista.Desktop.HistoryComparisonWindow(viewModel)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow,
+            WindowState = WindowState.Maximized
         };
         _historyComparisonWindow = comparisonWindow;
         comparisonWindow.Closed += (_, _) => _historyComparisonWindow = null;

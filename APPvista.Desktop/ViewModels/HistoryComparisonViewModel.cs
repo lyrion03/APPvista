@@ -15,6 +15,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 {
     private readonly ApplicationIconCache _applicationIconCache;
     private readonly IReadOnlyDictionary<string, string> _applicationAliases;
+    private readonly List<HistoryComparisonMetric> _metricOrder = [];
     private static readonly string[] ParallelChartPalette =
     [
         "#2D5E46",
@@ -34,10 +35,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     private const double ParallelChartBottomPadding = 52d;
     private const double ParallelChartLeftPadding = 28d;
     private const double ParallelChartRightPadding = 28d;
+    private const double ParallelChartMinLabelWidth = 56d;
+    private const double ParallelChartViewportSafetyPadding = 12d;
 
     private bool _isMetricSelectorOpen;
     private string _windowTitle = "详细对比";
     private string _rangeDisplay = string.Empty;
+    private double _parallelChartViewportWidth;
 
     public HistoryComparisonViewModel(
         ApplicationIconCache applicationIconCache,
@@ -97,9 +101,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public string ToggleAllApplicationsText => AllApplicationsSelected ? "全不选" : "全选";
     public bool HasParallelChartSelection => ParallelChartSeries.Count > 0;
     public bool HasParallelChart => ParallelChartAxes.Count >= 2 && ParallelChartSeries.Count > 0;
-    public double ParallelChartWidth => Math.Max(
-        ParallelChartMinWidth,
-        ParallelChartLeftPadding + ParallelChartRightPadding + Math.Max(0, ParallelChartAxes.Count - 1) * ParallelChartAxisSpacing);
+    public double ParallelChartWidth => GetParallelChartWidth(ParallelChartAxes.Count);
+    public double ParallelChartHostWidth => Math.Max(ParallelChartWidth, GetParallelChartAvailableWidth());
     public double ParallelChartHeight => ParallelChartHeightValue;
     public string ParallelChartHint =>
         !HasParallelChartSelection
@@ -110,6 +113,19 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
     public string SelectedApplicationsSummary =>
         $"已选择 {ComparisonRows.Count} / {AvailableApplications.Count} 个应用";
+
+    public double ParallelChartViewportWidth
+    {
+        get => _parallelChartViewportWidth;
+        set
+        {
+            var normalized = Math.Max(0d, value);
+            if (SetProperty(ref _parallelChartViewportWidth, normalized))
+            {
+                RefreshParallelChartLayout();
+            }
+        }
+    }
 
     public void Load(string windowTitle, string rangeDisplay, IReadOnlyList<HistoryApplicationAggregate> applicationAggregates)
     {
@@ -173,6 +189,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             }
         };
         VisibleMetrics.Add(option);
+        _metricOrder.Add(metric);
     }
 
     private HistoryComparisonSelectableApplicationViewModel CreateSelectableApplication(HistoryApplicationAggregate aggregate)
@@ -209,6 +226,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         var selectedMetrics = VisibleMetrics
             .Where(static item => item.IsSelected)
             .Select(static item => item.Metric)
+            .OrderBy(GetMetricOrderIndex)
             .ToArray();
 
         var selectedApplications = AvailableApplications
@@ -243,6 +261,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         RaisePropertyChanged(nameof(HasParallelChart));
         RaisePropertyChanged(nameof(HasParallelChartSelection));
         RaisePropertyChanged(nameof(ParallelChartWidth));
+        RaisePropertyChanged(nameof(ParallelChartHostWidth));
         RaisePropertyChanged(nameof(ParallelChartHint));
     }
 
@@ -307,21 +326,25 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         var plotTop = ParallelChartTopPadding;
         var plotBottom = chartHeight - ParallelChartBottomPadding;
         var plotHeight = Math.Max(1d, plotBottom - plotTop);
+        var axisSpacing = GetParallelChartAxisSpacing(metrics.Count);
+        var axisLabelWidth = GetParallelChartAxisLabelWidth(axisSpacing);
 
         var axes = new List<HistoryComparisonParallelAxisViewModel>(metrics.Count);
         for (var index = 0; index < metrics.Count; index++)
         {
             var descriptor = metrics[index];
-            var x = ParallelChartLeftPadding + index * ParallelChartAxisSpacing;
+            var x = ParallelChartLeftPadding + index * axisSpacing;
 
             axes.Add(new HistoryComparisonParallelAxisViewModel(
+                descriptor.Metric,
                 descriptor.DisplayName,
                 descriptor.MinLabel,
                 descriptor.MaxLabel,
                 x,
                 plotTop,
                 plotHeight,
-                x - 44d));
+                x - axisLabelWidth / 2d,
+                axisLabelWidth));
         }
 
         var series = new List<HistoryComparisonParallelSeriesViewModel>(selectedApplications.Count);
@@ -362,10 +385,12 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 left.Label == right.Label &&
                 left.MinLabel == right.MinLabel &&
                 left.MaxLabel == right.MaxLabel &&
+                left.Metric == right.Metric &&
                 left.X.Equals(right.X) &&
                 left.Y.Equals(right.Y) &&
                 left.Height.Equals(right.Height) &&
-                left.LabelLeft.Equals(right.LabelLeft));
+                left.LabelLeft.Equals(right.LabelLeft) &&
+                left.LabelWidth.Equals(right.LabelWidth));
 
         SyncObservableCollection(
             ParallelChartSeries,
@@ -376,6 +401,151 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 PointCollectionsEqual(left.Points, right.Points));
 
         ApplyParallelSeriesHighlight(null);
+    }
+
+    private double GetParallelChartWidth(int axisCount)
+    {
+        var targetWidth = GetParallelChartAvailableWidth();
+        if (axisCount <= 1)
+        {
+            return targetWidth;
+        }
+
+        var naturalWidth = ParallelChartLeftPadding + ParallelChartRightPadding + (axisCount - 1) * ParallelChartAxisSpacing;
+        return Math.Min(naturalWidth, targetWidth);
+    }
+
+    private double GetParallelChartAvailableWidth() =>
+        Math.Max(ParallelChartMinWidth, _parallelChartViewportWidth - ParallelChartViewportSafetyPadding);
+
+    private double GetParallelChartAxisSpacing(int axisCount)
+    {
+        if (axisCount <= 1)
+        {
+            return 0d;
+        }
+
+        var chartWidth = GetParallelChartWidth(axisCount);
+        var availableSpacing = Math.Max(0d, (chartWidth - ParallelChartLeftPadding - ParallelChartRightPadding) / (axisCount - 1));
+        return Math.Min(ParallelChartAxisSpacing, availableSpacing);
+    }
+
+    private static double GetParallelChartAxisLabelWidth(double axisSpacing) =>
+        Math.Max(ParallelChartMinLabelWidth, Math.Min(88d, axisSpacing + 24d));
+
+    private void RefreshParallelChartLayout()
+    {
+        RaisePropertyChanged(nameof(ParallelChartWidth));
+        RaisePropertyChanged(nameof(ParallelChartHostWidth));
+
+        var selectedMetrics = GetOrderedSelectedMetrics();
+
+        var selectedApplications = AvailableApplications
+            .Where(static item => item.IsSelected)
+            .OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        RefreshParallelChart(selectedApplications, selectedMetrics);
+        RaisePropertyChanged(nameof(HasParallelChart));
+        RaisePropertyChanged(nameof(HasParallelChartSelection));
+        RaisePropertyChanged(nameof(ParallelChartHint));
+    }
+
+    public void MoveParallelChartAxis(HistoryComparisonMetric metric, double chartX)
+    {
+        var orderedSelectedMetrics = GetOrderedSelectedMetrics();
+        if (orderedSelectedMetrics.Count < 2)
+        {
+            return;
+        }
+
+        var currentIndex = -1;
+        for (var index = 0; index < orderedSelectedMetrics.Count; index++)
+        {
+            if (orderedSelectedMetrics[index] == metric)
+            {
+                currentIndex = index;
+                break;
+            }
+        }
+
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
+        var targetIndex = 0;
+        var bestDistance = double.MaxValue;
+        for (var index = 0; index < ParallelChartAxes.Count; index++)
+        {
+            var distance = Math.Abs(ParallelChartAxes[index].X - chartX);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                targetIndex = index;
+            }
+        }
+
+        if (targetIndex == currentIndex)
+        {
+            return;
+        }
+
+        MoveMetricInOrder(metric, orderedSelectedMetrics, currentIndex, targetIndex);
+        SyncVisibleMetricOrder();
+        RefreshComparisonRows();
+    }
+
+    private IReadOnlyList<HistoryComparisonMetric> GetOrderedSelectedMetrics() =>
+        VisibleMetrics
+            .Where(static item => item.IsSelected)
+            .Select(static item => item.Metric)
+            .OrderBy(GetMetricOrderIndex)
+            .ToArray();
+
+    private int GetMetricOrderIndex(HistoryComparisonMetric metric)
+    {
+        var index = _metricOrder.IndexOf(metric);
+        return index >= 0 ? index : int.MaxValue;
+    }
+
+    private void MoveMetricInOrder(
+        HistoryComparisonMetric metric,
+        IReadOnlyList<HistoryComparisonMetric> orderedSelectedMetrics,
+        int currentIndex,
+        int targetIndex)
+    {
+        _metricOrder.Remove(metric);
+
+        if (targetIndex < currentIndex)
+        {
+            var beforeMetric = orderedSelectedMetrics[targetIndex];
+            var insertIndex = _metricOrder.IndexOf(beforeMetric);
+            _metricOrder.Insert(insertIndex < 0 ? _metricOrder.Count : insertIndex, metric);
+            return;
+        }
+
+        var afterMetric = orderedSelectedMetrics[targetIndex];
+        var afterIndex = _metricOrder.IndexOf(afterMetric);
+        _metricOrder.Insert(afterIndex < 0 ? _metricOrder.Count : afterIndex + 1, metric);
+    }
+
+    private void SyncVisibleMetricOrder()
+    {
+        for (var targetIndex = 0; targetIndex < _metricOrder.Count; targetIndex++)
+        {
+            var metric = _metricOrder[targetIndex];
+            var currentIndex = VisibleMetrics
+                .Select((item, index) => new { item.Metric, index })
+                .First(item => item.Metric == metric)
+                .index;
+
+            if (currentIndex != targetIndex)
+            {
+                VisibleMetrics.Move(currentIndex, targetIndex);
+            }
+        }
     }
 
     public void HighlightParallelSeries(string? displayName)
@@ -448,10 +618,11 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         var max = values.Max();
         var range = max - min;
         Func<HistoryApplicationAggregate, double> normalizer = range <= 0d
-            ? static _ => 0.5d
+            ? _ => 0.5d
             : aggregate => Math.Clamp((GetMetricNumericValue(aggregate, metric) - min) / range, 0d, 1d);
 
         return new ParallelMetricDescriptor(
+            metric,
             GetMetricDisplayName(metric),
             FormatMetricAxisValue(metric, min),
             FormatMetricAxisValue(metric, max),
@@ -750,14 +921,17 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public sealed class HistoryComparisonParallelAxisViewModel
     {
         public HistoryComparisonParallelAxisViewModel(
+            HistoryComparisonMetric metric,
             string label,
             string minLabel,
             string maxLabel,
             double x,
             double y,
             double height,
-            double labelLeft)
+            double labelLeft,
+            double labelWidth)
         {
+            Metric = metric;
             Label = label;
             MinLabel = minLabel;
             MaxLabel = maxLabel;
@@ -765,8 +939,10 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             Y = y;
             Height = height;
             LabelLeft = labelLeft;
+            LabelWidth = labelWidth;
         }
 
+        public HistoryComparisonMetric Metric { get; }
         public string Label { get; }
         public string MinLabel { get; }
         public string MaxLabel { get; }
@@ -774,6 +950,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         public double Y { get; }
         public double Height { get; }
         public double LabelLeft { get; }
+        public double LabelWidth { get; }
     }
 
     public sealed class HistoryComparisonParallelSeriesViewModel : ObservableObject
@@ -881,6 +1058,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public readonly record struct HistoryComparisonMetricDisplayItem(string Label, string Value);
 
     private sealed record ParallelMetricDescriptor(
+        HistoryComparisonMetric Metric,
         string DisplayName,
         string MinLabel,
         string MaxLabel,

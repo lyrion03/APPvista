@@ -1,4 +1,4 @@
-<Window x:Class="APPvista.Desktop.HistoryComparisonWindow"
+﻿<Window x:Class="APPvista.Desktop.HistoryComparisonWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:services="clr-namespace:APPvista.Desktop.Services"
@@ -8,7 +8,8 @@
         MinWidth="960"
         MinHeight="720"
         Background="#F5F0E6"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        WindowState="Maximized">
     <Window.Resources>
         <services:IconPathToImageSourceConverter x:Key="IconPathToImageSourceConverter" />
 
@@ -46,306 +47,296 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="22">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <ScrollViewer x:Name="WindowScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="22">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Border Padding="22"
-                Background="#FFFDF9"
-                BorderBrush="#E2D8C8"
-                BorderThickness="1"
-                CornerRadius="26">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel>
-                    <TextBlock Foreground="#213B35"
-                               FontSize="30"
-                               FontWeight="SemiBold"
-                               Text="{Binding WindowTitle}" />
-                    <TextBlock Margin="0,6,0,0"
-                               Foreground="#5C6A61"
-                               FontSize="14"
-                               Text="{Binding RangeDisplay}" />
-                    <TextBlock Margin="0,8,0,0"
-                               Foreground="#7B817B"
-                               FontSize="13"
-                               Text="{Binding SelectedApplicationsSummary}" />
-                </StackPanel>
-
-                <Grid Grid.Column="1" VerticalAlignment="Top">
-                    <ToggleButton x:Name="MetricSelectorButton"
-                                  Padding="16,10"
-                                  Background="#F7F1E6"
-                                  BorderBrush="#DDD1BE"
-                                  BorderThickness="1"
-                                  FontSize="13"
-                                  FontWeight="SemiBold"
-                                  Foreground="#5B614F"
-                                  IsChecked="{Binding IsMetricSelectorOpen, Mode=TwoWay}"
-                                  Content="显示指标" />
-                    <Popup PlacementTarget="{Binding ElementName=MetricSelectorButton}"
-                           Placement="Bottom"
-                           IsOpen="{Binding IsMetricSelectorOpen}"
-                           StaysOpen="False">
-                        <Border Margin="0,8,0,0"
-                                Padding="14"
-                                Background="#FFFDF9"
-                                BorderBrush="#D8CEBE"
-                                BorderThickness="1"
-                                CornerRadius="18">
-                            <StackPanel>
-                                <TextBlock Foreground="#213B35"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Text="选择显示指标" />
-                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding VisibleMetrics}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <CheckBox Margin="0,4,0,0"
-                                                      Foreground="#46534C"
-                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      Content="{Binding DisplayName}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
-                </Grid>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="2"
-                Padding="18"
-                Background="#15312B"
-                CornerRadius="26">
-            <StackPanel>
+            <Border Padding="22"
+                    Background="#15312B"
+                    BorderBrush="#21483D"
+                    BorderThickness="1"
+                    CornerRadius="26">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                <TextBlock Foreground="#E1ECE6"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Text="选择要比较的应用" />
-                <TextBlock Margin="0,6,0,0"
-                           Foreground="#AFBEB7"
-                           FontSize="12"
-                           Text="按名称排序，默认不选。选中后下方会立即刷新统计对比。" />
-                    </StackPanel>
-                    <Button Grid.Column="1"
-                            Padding="12,6"
-                            Margin="12,0,0,0"
-                            VerticalAlignment="Top"
-                            Background="#21483D"
-                            BorderBrush="#6EA08F"
-                            BorderThickness="1"
-                            Cursor="Hand"
-                            Command="{Binding ToggleAllApplicationsCommand}"
-                            Content="{Binding ToggleAllApplicationsText}"
-                            Foreground="#E8F4EE"
-                            FontSize="12"
-                            FontWeight="SemiBold" />
-                </Grid>
-                <ScrollViewer x:Name="ApplicationSelectorScrollViewer"
-                              Margin="0,14,0,0"
-                              HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto"
-                              MaxHeight="220">
-                    <ItemsControl ItemsSource="{Binding AvailableApplications}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <ToggleButton Width="114"
-                                              Height="116"
-                                              Style="{StaticResource SelectorToggleStyle}"
-                                              PreviewMouseLeftButtonDown="ApplicationSelectorToggle_OnPreviewMouseLeftButtonDown"
-                                              IsChecked="{Binding IsSelected, Mode=TwoWay}">
-                                    <StackPanel>
-                                        <Border Width="40"
-                                                Height="40"
-                                                Margin="0,0,0,10"
-                                                HorizontalAlignment="Center"
-                                                Background="#F2ECE0"
-                                                CornerRadius="12">
-                                            <Image Width="24"
-                                                   Height="24"
-                                                   VerticalAlignment="Center"
-                                                   HorizontalAlignment="Center"
-                                                   Stretch="Uniform"
-                                                   Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
-                                        </Border>
-                                        <TextBlock Text="{Binding DisplayName}"
-                                                   Foreground="#213B35"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"
-                                                   TextAlignment="Center"
-                                                   TextWrapping="Wrap"
-                                                   MaxHeight="40" />
-                                    </StackPanel>
-                                </ToggleButton>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="4"
-                Padding="18"
-                Background="#FFFDF9"
-                BorderBrush="#E2D8C8"
-                BorderThickness="1"
-                CornerRadius="26">
-            <Grid>
-                <TextBlock HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="#8B938B"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           Text="请选择上方应用后查看详细对比">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <ScrollViewer x:Name="ComparisonContentScrollViewer"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <ScrollViewer.Style>
-                        <Style TargetType="ScrollViewer">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ScrollViewer.Style>
-
-                    <StackPanel>
-                        <Border Padding="18"
-                                Margin="0,0,0,18"
-                                Background="#F7F1E8"
-                                BorderBrush="#E2D8C8"
-                                BorderThickness="1"
-                                CornerRadius="22">
-                            <StackPanel>
-                                <TextBlock Foreground="#213B35"
-                                           FontSize="18"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="14" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Foreground="#F3FAF6"
+                                           FontSize="30"
                                            FontWeight="SemiBold"
-                                           Text="平行坐标图" />
-                                <TextBlock Margin="0,6,0,0"
-                                           Foreground="#6B746C"
-                                           FontSize="12"
-                                           Text="{Binding ParallelChartHint}" />
+                                           Text="{Binding WindowTitle}" />
+                                <TextBlock Margin="28,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#C5D7CF"
+                                           FontSize="14"
+                                           Text="{Binding RangeDisplay}" />
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="#AFBEB7"
+                                       FontSize="12"
+                                       Text="按名称排序，默认不选。选中后下方会立即刷新统计对比。" />
+                        </StackPanel>
 
-                                <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding ParallelChartSeries}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="0,0,12,8"
-                                                    Padding="10,6"
-                                                    Background="{Binding LegendBackground}"
-                                                    BorderBrush="{Binding LegendBorderBrush}"
-                                                    CornerRadius="14"
-                                                    Cursor="Hand"
-                                                    Opacity="{Binding LegendOpacity}"
-                                                    MouseEnter="ParallelChartSeriesElement_OnMouseEnter"
-                                                    MouseLeave="ParallelChartSeriesElement_OnMouseLeave">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="BorderThickness" Value="1" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                                                <Setter Property="BorderThickness" Value="2" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Width="12"
-                                                            Height="12"
-                                                            CornerRadius="6"
-                                                            Background="{Binding Stroke}"
-                                                            VerticalAlignment="Center" />
-                                                    <TextBlock Margin="6,0,0,0"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="#44514C"
-                                                               FontSize="12"
-                                                               Text="{Binding DisplayName}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="FontWeight" Value="Normal" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <Border Margin="0,12,0,0"
-                                        Padding="12"
-                                        Background="#FFFDF9"
-                                        BorderBrush="#DED4C5"
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Top"
+                                    HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Padding="12,6"
+                                        Margin="0,0,10,0"
+                                        Background="#21483D"
+                                        BorderBrush="#6EA08F"
                                         BorderThickness="1"
-                                        CornerRadius="18">
-                                    <Grid>
-                                        <TextBlock HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="#8B938B"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   Text="至少选择 1 个应用和 2 个指标后才会生成图形。">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                        Cursor="Hand"
+                                        Command="{Binding ToggleAllApplicationsCommand}"
+                                        Content="{Binding ToggleAllApplicationsText}"
+                                        Foreground="#E8F4EE"
+                                        FontSize="12"
+                                        FontWeight="SemiBold" />
+                                <Grid>
+                                    <ToggleButton x:Name="MetricSelectorButton"
+                                                  Padding="16,10"
+                                                  Background="#21483D"
+                                                  BorderBrush="#6EA08F"
+                                                  BorderThickness="1"
+                                                  FontSize="13"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="#E8F4EE"
+                                                  IsChecked="{Binding IsMetricSelectorOpen, Mode=TwoWay}"
+                                                  Content="显示指标" />
+                                    <Popup PlacementTarget="{Binding ElementName=MetricSelectorButton}"
+                                           Placement="Bottom"
+                                           IsOpen="{Binding IsMetricSelectorOpen}"
+                                           StaysOpen="False">
+                                        <Border Margin="0,8,0,0"
+                                                Padding="14"
+                                                Background="#FFFDF9"
+                                                BorderBrush="#D8CEBE"
+                                                BorderThickness="1"
+                                                CornerRadius="18">
+                                            <StackPanel>
+                                                <TextBlock Foreground="#213B35"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Text="选择显示指标" />
+                                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding VisibleMetrics}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <CheckBox Margin="0,4,0,0"
+                                                                      Foreground="#46534C"
+                                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                      Content="{Binding DisplayName}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0"
+                                       HorizontalAlignment="Right"
+                                       Foreground="#E1ECE6"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding SelectedApplicationsSummary}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <ScrollViewer x:Name="ApplicationSelectorScrollViewer"
+                                  Grid.Row="2"
+                                  Margin="0,14,0,0"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="220">
+                        <ItemsControl ItemsSource="{Binding AvailableApplications}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ToggleButton Width="114"
+                                                  Height="116"
+                                                  Style="{StaticResource SelectorToggleStyle}"
+                                                  PreviewMouseLeftButtonDown="ApplicationSelectorToggle_OnPreviewMouseLeftButtonDown"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                        <StackPanel>
+                                            <Border Width="40"
+                                                    Height="40"
+                                                    Margin="0,0,0,10"
+                                                    HorizontalAlignment="Center"
+                                                    Background="#F2ECE0"
+                                                    CornerRadius="12">
+                                                <Image Width="24"
+                                                       Height="24"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Stretch="Uniform"
+                                                       Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       Foreground="#213B35"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       MaxHeight="40" />
+                                        </StackPanel>
+                                    </ToggleButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2"
+                    Padding="18"
+                    Background="#FFFDF9"
+                    BorderBrush="#E2D8C8"
+                    BorderThickness="1"
+                    CornerRadius="26">
+                <Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="#8B938B"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Text="请选择上方应用后查看详细对比">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedApplications}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Foreground="#213B35"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="平行坐标图" />
+
+                            <ItemsControl Grid.Row="1"
+                                          Margin="0,12,0,0"
+                                          ItemsSource="{Binding ParallelChartSeries}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,12,8"
+                                                Padding="10,6"
+                                                Background="{Binding LegendBackground}"
+                                                BorderBrush="{Binding LegendBorderBrush}"
+                                                CornerRadius="14"
+                                                Cursor="Hand"
+                                                Opacity="{Binding LegendOpacity}"
+                                                MouseEnter="ParallelChartSeriesElement_OnMouseEnter"
+                                                MouseLeave="ParallelChartSeriesElement_OnMouseLeave">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderThickness" Value="1" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasParallelChart}" Value="False">
-                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                            <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                            </Border.Style>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="12"
+                                                        Height="12"
+                                                        CornerRadius="6"
+                                                        Background="{Binding Stroke}"
+                                                        VerticalAlignment="Center" />
+                                                <TextBlock Margin="6,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#44514C"
+                                                           FontSize="12"
+                                                           Text="{Binding DisplayName}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="FontWeight" Value="Normal" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                                        <ScrollViewer x:Name="ParallelChartScrollViewer"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      PreviewMouseWheel="ParallelChartScrollViewer_OnPreviewMouseWheel"
-                                                      VerticalScrollBarVisibility="Disabled">
+                            <Grid Grid.Row="3">
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="#8B938B"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding ParallelChartHint}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasParallelChart}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <ScrollViewer x:Name="ParallelChartScrollViewer"
+                                              HorizontalScrollBarVisibility="Auto"
+                                              PreviewMouseWheel="ParallelChartScrollViewer_OnPreviewMouseWheel"
+                                              Loaded="ParallelChartScrollViewer_OnLoaded"
+                                              ScrollChanged="ParallelChartScrollViewer_OnScrollChanged"
+                                              SizeChanged="ParallelChartScrollViewer_OnSizeChanged"
+                                              VerticalScrollBarVisibility="Disabled">
                                             <ScrollViewer.Style>
                                                 <Style TargetType="ScrollViewer">
                                                     <Setter Property="Visibility" Value="Visible" />
@@ -357,12 +348,17 @@
                                                 </Style>
                                             </ScrollViewer.Style>
 
-                                            <Grid Width="{Binding ParallelChartWidth}"
+                                            <Grid Width="{Binding ParallelChartHostWidth}"
                                                   Height="{Binding ParallelChartHeight}"
-                                                  Background="Transparent"
-                                                  MouseMove="ParallelChartSurface_OnMouseMove"
-                                                  MouseLeave="ParallelChartSurface_OnMouseLeave">
-                                                <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
+                                                  Background="Transparent">
+                                                <Grid x:Name="ParallelChartSurface"
+                                                      Width="{Binding ParallelChartWidth}"
+                                                      Height="{Binding ParallelChartHeight}"
+                                                      Background="Transparent"
+                                                      HorizontalAlignment="Center"
+                                                      MouseMove="ParallelChartSurface_OnMouseMove"
+                                                      MouseLeave="ParallelChartSurface_OnMouseLeave">
+                                                    <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <Canvas />
@@ -381,9 +377,9 @@
                                                                     Background="#D7CCBC" />
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                    </ItemsControl>
 
-                                                <ItemsControl ItemsSource="{Binding ParallelChartSeries}">
+                                                    <ItemsControl ItemsSource="{Binding ParallelChartSeries}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <Canvas />
@@ -411,9 +407,9 @@
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                    </ItemsControl>
 
-                                                <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
+                                                    <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <Canvas />
@@ -436,9 +432,9 @@
                                                                      IsHitTestVisible="False" />
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                    </ItemsControl>
 
-                                                <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
+                                                    <ItemsControl ItemsSource="{Binding HighlightedParallelMarkers}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <Canvas />
@@ -465,9 +461,9 @@
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                    </ItemsControl>
 
-                                                <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
+                                                    <ItemsControl ItemsSource="{Binding ParallelChartAxes}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <Canvas />
@@ -481,7 +477,7 @@
                                                     </ItemsControl.ItemContainerStyle>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid Width="88"
+                                                            <Grid Width="{Binding LabelWidth}"
                                                                   Height="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}, Path=DataContext.ParallelChartHeight}">
                                                                 <TextBlock HorizontalAlignment="Center"
                                                                            Foreground="#213B35"
@@ -506,87 +502,23 @@
                                                                            Text="{Binding MaxLabel}"
                                                                            TextAlignment="Center"
                                                                            TextWrapping="Wrap" />
+                                                                <Border Width="20"
+                                                                        HorizontalAlignment="Center"
+                                                                        Background="Transparent"
+                                                                        Cursor="SizeWE"
+                                                                        PreviewMouseLeftButtonDown="ParallelChartAxisHandle_OnPreviewMouseLeftButtonDown" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                    </ItemsControl>
+                                                </Grid>
                                             </Grid>
-                                        </ScrollViewer>
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-
-                        <ItemsControl ItemsSource="{Binding ComparisonRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,0,0,14"
-                                            Padding="18"
-                                            Background="#FCF8F1"
-                                            BorderBrush="#E2D8C8"
-                                            BorderThickness="1"
-                                            CornerRadius="22">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Border Width="42"
-                                                        Height="42"
-                                                        Background="#F0E7D8"
-                                                        CornerRadius="12">
-                                                    <Image Width="24"
-                                                           Height="24"
-                                                           VerticalAlignment="Center"
-                                                           HorizontalAlignment="Center"
-                                                           Stretch="Uniform"
-                                                           Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}" />
-                                                </Border>
-                                                <StackPanel Margin="12,0,0,0">
-                                                    <TextBlock Foreground="#213B35"
-                                                               FontSize="18"
-                                                               FontWeight="SemiBold"
-                                                               Text="{Binding DisplayName}" />
-                                                    <TextBlock Foreground="#7A8078"
-                                                               FontSize="12"
-                                                               Text="{Binding ProcessName}" />
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding VisibleMetrics}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border MinWidth="160"
-                                                                Margin="0,0,12,12"
-                                                                Padding="12,10"
-                                                                Background="#FFFDF9"
-                                                                BorderBrush="#DED4C5"
-                                                                BorderThickness="1"
-                                                                CornerRadius="16">
-                                                            <StackPanel>
-                                                                <TextBlock Foreground="#7A8178"
-                                                                           FontSize="12"
-                                                                           Text="{Binding Label}" />
-                                                                <TextBlock Margin="0,4,0,0"
-                                                                           Foreground="#213B35"
-                                                                           FontSize="15"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="{Binding Value}" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
-        </Border>
-    </Grid>
+                                </ScrollViewer>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
 </Window>

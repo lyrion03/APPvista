@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -11,6 +12,8 @@ public partial class HistoryComparisonWindow : Window
 {
     private const double ParallelChartHoverDistance = 16d;
     private bool _isSelectingApplications;
+    private bool _applicationSelectionTarget;
+    private HistoryComparisonViewModel.HistoryComparisonMetric? _draggingParallelAxisMetric;
 
     public HistoryComparisonWindow(object viewModel)
     {
@@ -51,10 +54,27 @@ public partial class HistoryComparisonWindow : Window
 
     private void ParallelChartSurface_OnMouseLeave(object sender, WpfMouseEventArgs e)
     {
+        if (_draggingParallelAxisMetric is not null)
+        {
+            return;
+        }
+
         if (DataContext is HistoryComparisonViewModel viewModel)
         {
             viewModel.ClearParallelSeriesHighlight();
         }
+    }
+
+    private void ParallelChartAxisHandle_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not HistoryComparisonViewModel.HistoryComparisonParallelAxisViewModel axis)
+        {
+            return;
+        }
+
+        _draggingParallelAxisMetric = axis.Metric;
+        CaptureMouse();
+        e.Handled = true;
     }
 
     private void ParallelChartScrollViewer_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -72,11 +92,31 @@ public partial class HistoryComparisonWindow : Window
         e.Handled = true;
         if (e.Delta > 0)
         {
-            ComparisonContentScrollViewer.LineUp();
+            WindowScrollViewer.LineUp();
             return;
         }
 
-        ComparisonContentScrollViewer.LineDown();
+        WindowScrollViewer.LineDown();
+    }
+
+    private void ParallelChartScrollViewer_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        UpdateParallelChartViewportWidth(sender as ScrollViewer);
+    }
+
+    private void ParallelChartScrollViewer_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateParallelChartViewportWidth(sender as ScrollViewer);
+    }
+
+    private void ParallelChartScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (Math.Abs(e.ViewportWidthChange) < double.Epsilon)
+        {
+            return;
+        }
+
+        UpdateParallelChartViewportWidth(sender as ScrollViewer);
     }
 
     private void ApplicationSelectorToggle_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -88,7 +128,8 @@ public partial class HistoryComparisonWindow : Window
         }
 
         _isSelectingApplications = true;
-        application.IsSelected = true;
+        _applicationSelectionTarget = !application.IsSelected;
+        application.IsSelected = _applicationSelectionTarget;
         CaptureMouse();
         e.Handled = true;
     }
@@ -96,6 +137,23 @@ public partial class HistoryComparisonWindow : Window
     protected override void OnPreviewMouseMove(WpfMouseEventArgs e)
     {
         base.OnPreviewMouseMove(e);
+
+        if (_draggingParallelAxisMetric is HistoryComparisonViewModel.HistoryComparisonMetric metric)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                EndParallelAxisDrag();
+                return;
+            }
+
+            if (DataContext is HistoryComparisonViewModel viewModel)
+            {
+                var position = e.GetPosition(ParallelChartSurface);
+                viewModel.MoveParallelChartAxis(metric, position.X);
+            }
+
+            return;
+        }
 
         if (!_isSelectingApplications)
         {
@@ -112,13 +170,14 @@ public partial class HistoryComparisonWindow : Window
         var toggleButton = FindAncestor<ToggleButton>(element);
         if (toggleButton?.DataContext is HistoryComparisonViewModel.HistoryComparisonSelectableApplicationViewModel application)
         {
-            application.IsSelected = true;
+            application.IsSelected = _applicationSelectionTarget;
         }
     }
 
     protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonUp(e);
+        EndParallelAxisDrag();
         EndApplicationSelectionDrag();
     }
 
@@ -131,6 +190,20 @@ public partial class HistoryComparisonWindow : Window
 
         _isSelectingApplications = false;
         if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+    }
+
+    private void EndParallelAxisDrag()
+    {
+        if (_draggingParallelAxisMetric is null)
+        {
+            return;
+        }
+
+        _draggingParallelAxisMetric = null;
+        if (!_isSelectingApplications && IsMouseCaptured)
         {
             ReleaseMouseCapture();
         }
@@ -149,5 +222,21 @@ public partial class HistoryComparisonWindow : Window
         }
 
         return null;
+    }
+
+    private void UpdateParallelChartViewportWidth(ScrollViewer? scrollViewer)
+    {
+        if (scrollViewer is null || DataContext is not HistoryComparisonViewModel viewModel)
+        {
+            return;
+        }
+
+        var viewportWidth = scrollViewer.ViewportWidth;
+        if (double.IsNaN(viewportWidth) || double.IsInfinity(viewportWidth) || viewportWidth <= 0d)
+        {
+            viewportWidth = Math.Max(0d, scrollViewer.ActualWidth - 4d);
+        }
+
+        viewModel.ParallelChartViewportWidth = viewportWidth;
     }
 }
