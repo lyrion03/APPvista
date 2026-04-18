@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using APPvista.Desktop.Services;
+using APPvista.Domain.Entities;
 
 namespace APPvista.Desktop.ViewModels;
 
@@ -535,47 +536,7 @@ public sealed partial class DashboardViewModel
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        if (today < rangeStart || today > rangeEnd)
-        {
-            return applicationRecords;
-        }
-
-        var merged = applicationRecords.ToDictionary(
-            static record => record.ProcessName,
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var process in Snapshot.TopProcesses)
-        {
-            if (string.IsNullOrWhiteSpace(process.ProcessName))
-            {
-                continue;
-            }
-
-            if (!merged.TryGetValue(process.ProcessName, out var aggregate))
-            {
-                aggregate = new HistoryOverviewApplicationAggregate
-                {
-                    ProcessName = process.ProcessName,
-                    ExecutablePath = process.ExecutablePath
-                };
-            }
-
-            merged[process.ProcessName] = aggregate with
-            {
-                ExecutablePath = string.IsNullOrWhiteSpace(aggregate.ExecutablePath) && !string.IsNullOrWhiteSpace(process.ExecutablePath)
-                    ? process.ExecutablePath
-                    : aggregate.ExecutablePath,
-                ForegroundMilliseconds = aggregate.ForegroundMilliseconds + process.DailyForegroundMilliseconds,
-                BackgroundMilliseconds = aggregate.BackgroundMilliseconds + process.DailyBackgroundMilliseconds,
-                DownloadBytes = aggregate.DownloadBytes + process.DailyDownloadBytes,
-                UploadBytes = aggregate.UploadBytes + process.DailyUploadBytes,
-                IoReadBytes = aggregate.IoReadBytes + process.DailyIoReadBytes,
-                IoWriteBytes = aggregate.IoWriteBytes + process.DailyIoWriteBytes
-            };
-        }
-
-        return merged.Values.ToList();
+        return applicationRecords;
     }
 
     private IReadOnlyList<HistoryApplicationAggregate> MergeLiveTodayComparisonApplicationAggregates(
@@ -589,6 +550,9 @@ public sealed partial class DashboardViewModel
             return applicationRecords;
         }
 
+        var todayStoredAggregates = _historyAnalysisProvider
+            .LoadApplicationAggregates(today, today)
+            .ToDictionary(static record => record.ProcessName, StringComparer.OrdinalIgnoreCase);
         var merged = applicationRecords.ToDictionary(
             static record => record.ProcessName,
             StringComparer.OrdinalIgnoreCase);
@@ -609,46 +573,85 @@ public sealed partial class DashboardViewModel
                 };
             }
 
-            var totalUsageMilliseconds = process.DailyForegroundMilliseconds + process.DailyBackgroundMilliseconds;
-            var estimatedIoOperations = totalUsageMilliseconds > 0
-                ? (long)Math.Round(process.AverageIops * (totalUsageMilliseconds / 1000d), MidpointRounding.AwayFromZero)
-                : 0L;
-            var estimatedReadOperations = process.DailyIoReadBytes + process.DailyIoWriteBytes > 0
-                ? (long)Math.Round(estimatedIoOperations * (process.DailyIoReadBytes / (double)Math.Max(1L, process.DailyIoReadBytes + process.DailyIoWriteBytes)), MidpointRounding.AwayFromZero)
-                : 0L;
-            var estimatedWriteOperations = Math.Max(0L, estimatedIoOperations - estimatedReadOperations);
-
-            merged[process.ProcessName] = aggregate with
+            if (todayStoredAggregates.TryGetValue(process.ProcessName, out var todayStoredAggregate))
             {
-                ActiveDays = Math.Max(aggregate.ActiveDays, 1),
-                ExecutablePath = string.IsNullOrWhiteSpace(aggregate.ExecutablePath) && !string.IsNullOrWhiteSpace(process.ExecutablePath)
-                    ? process.ExecutablePath
-                    : aggregate.ExecutablePath,
-                ForegroundMilliseconds = aggregate.ForegroundMilliseconds + process.DailyForegroundMilliseconds,
-                BackgroundMilliseconds = aggregate.BackgroundMilliseconds + process.DailyBackgroundMilliseconds,
-                DownloadBytes = aggregate.DownloadBytes + process.DailyDownloadBytes,
-                UploadBytes = aggregate.UploadBytes + process.DailyUploadBytes,
-                IoReadBytes = aggregate.IoReadBytes + process.DailyIoReadBytes,
-                IoWriteBytes = aggregate.IoWriteBytes + process.DailyIoWriteBytes,
-                ForegroundCpuTotal = aggregate.ForegroundCpuTotal + process.AverageForegroundCpu,
-                ForegroundWorkingSetTotal = aggregate.ForegroundWorkingSetTotal + process.AverageForegroundWorkingSetBytes,
-                ForegroundSamples = aggregate.ForegroundSamples + (process.DailyForegroundMilliseconds > 0 ? 1 : 0),
-                BackgroundCpuTotal = aggregate.BackgroundCpuTotal + process.AverageBackgroundCpu,
-                BackgroundWorkingSetTotal = aggregate.BackgroundWorkingSetTotal + process.AverageBackgroundWorkingSetBytes,
-                BackgroundSamples = aggregate.BackgroundSamples + (process.DailyBackgroundMilliseconds > 0 ? 1 : 0),
-                PeakWorkingSetBytes = Math.Max(aggregate.PeakWorkingSetBytes, process.PeakWorkingSetBytes),
-                ThreadCountTotal = aggregate.ThreadCountTotal + process.AverageThreadCount,
-                ThreadSamples = aggregate.ThreadSamples + (process.AverageThreadCount > 0 ? 1 : 0),
-                PeakThreadCount = Math.Max(aggregate.PeakThreadCount, process.PeakThreadCount),
-                IoReadOperations = aggregate.IoReadOperations + estimatedReadOperations,
-                IoWriteOperations = aggregate.IoWriteOperations + estimatedWriteOperations,
-                PeakDownloadBytesPerSecond = Math.Max(aggregate.PeakDownloadBytesPerSecond, process.PeakDownloadBytesPerSecond),
-                PeakUploadBytesPerSecond = Math.Max(aggregate.PeakUploadBytesPerSecond, process.PeakUploadBytesPerSecond),
-                PeakIoBytesPerSecond = Math.Max(aggregate.PeakIoBytesPerSecond, process.PeakIoBytesPerSecond)
-            };
+                aggregate = SubtractHistoryApplicationAggregate(aggregate, todayStoredAggregate);
+            }
+
+            merged[process.ProcessName] = AddSnapshotTodayAggregate(aggregate, process);
         }
 
         return merged.Values.ToList();
+    }
+
+    private static HistoryApplicationAggregate AddSnapshotTodayAggregate(HistoryApplicationAggregate aggregate, ProcessResourceSnapshot process)
+    {
+        var foregroundSampleCount = process.DailyForegroundMilliseconds > 0 ? 1 : 0;
+        var backgroundSampleCount = process.DailyBackgroundMilliseconds > 0 ? 1 : 0;
+        var totalUsageMilliseconds = process.DailyForegroundMilliseconds + process.DailyBackgroundMilliseconds;
+        var estimatedIoOperations = totalUsageMilliseconds > 0
+            ? (long)Math.Round(process.AverageIops * (totalUsageMilliseconds / 1000d), MidpointRounding.AwayFromZero)
+            : 0L;
+        var totalIoBytes = process.DailyIoReadBytes + process.DailyIoWriteBytes;
+        var estimatedReadOperations = totalIoBytes > 0
+            ? (long)Math.Round(estimatedIoOperations * (process.DailyIoReadBytes / (double)totalIoBytes), MidpointRounding.AwayFromZero)
+            : totalUsageMilliseconds > 0 ? estimatedIoOperations / 2 : 0L;
+        var estimatedWriteOperations = Math.Max(0L, estimatedIoOperations - estimatedReadOperations);
+
+        return aggregate with
+        {
+            ActiveDays = Math.Max(aggregate.ActiveDays, 1),
+            ExecutablePath = string.IsNullOrWhiteSpace(aggregate.ExecutablePath) && !string.IsNullOrWhiteSpace(process.ExecutablePath)
+                ? process.ExecutablePath
+                : aggregate.ExecutablePath,
+            ForegroundMilliseconds = aggregate.ForegroundMilliseconds + process.DailyForegroundMilliseconds,
+            BackgroundMilliseconds = aggregate.BackgroundMilliseconds + process.DailyBackgroundMilliseconds,
+            DownloadBytes = aggregate.DownloadBytes + process.DailyDownloadBytes,
+            UploadBytes = aggregate.UploadBytes + process.DailyUploadBytes,
+            IoReadBytes = aggregate.IoReadBytes + process.DailyIoReadBytes,
+            IoWriteBytes = aggregate.IoWriteBytes + process.DailyIoWriteBytes,
+            ForegroundCpuTotal = aggregate.ForegroundCpuTotal + (process.AverageForegroundCpu * foregroundSampleCount),
+            ForegroundWorkingSetTotal = aggregate.ForegroundWorkingSetTotal + (process.AverageForegroundWorkingSetBytes * foregroundSampleCount),
+            ForegroundSamples = aggregate.ForegroundSamples + foregroundSampleCount,
+            BackgroundCpuTotal = aggregate.BackgroundCpuTotal + (process.AverageBackgroundCpu * backgroundSampleCount),
+            BackgroundWorkingSetTotal = aggregate.BackgroundWorkingSetTotal + (process.AverageBackgroundWorkingSetBytes * backgroundSampleCount),
+            BackgroundSamples = aggregate.BackgroundSamples + backgroundSampleCount,
+            PeakWorkingSetBytes = Math.Max(aggregate.PeakWorkingSetBytes, process.PeakWorkingSetBytes),
+            ThreadCountTotal = aggregate.ThreadCountTotal + (process.AverageThreadCount > 0 ? process.AverageThreadCount : 0d),
+            ThreadSamples = aggregate.ThreadSamples + (process.AverageThreadCount > 0 ? 1 : 0),
+            PeakThreadCount = Math.Max(aggregate.PeakThreadCount, process.PeakThreadCount),
+            IoReadOperations = aggregate.IoReadOperations + estimatedReadOperations,
+            IoWriteOperations = aggregate.IoWriteOperations + estimatedWriteOperations,
+            PeakDownloadBytesPerSecond = Math.Max(aggregate.PeakDownloadBytesPerSecond, process.PeakDownloadBytesPerSecond),
+            PeakUploadBytesPerSecond = Math.Max(aggregate.PeakUploadBytesPerSecond, process.PeakUploadBytesPerSecond),
+            PeakIoBytesPerSecond = Math.Max(aggregate.PeakIoBytesPerSecond, process.PeakIoBytesPerSecond)
+        };
+    }
+
+    private static HistoryApplicationAggregate SubtractHistoryApplicationAggregate(
+        HistoryApplicationAggregate source,
+        HistoryApplicationAggregate subtract)
+    {
+        return source with
+        {
+            ActiveDays = Math.Max(0, source.ActiveDays - subtract.ActiveDays),
+            ForegroundMilliseconds = Math.Max(0L, source.ForegroundMilliseconds - subtract.ForegroundMilliseconds),
+            BackgroundMilliseconds = Math.Max(0L, source.BackgroundMilliseconds - subtract.BackgroundMilliseconds),
+            DownloadBytes = Math.Max(0L, source.DownloadBytes - subtract.DownloadBytes),
+            UploadBytes = Math.Max(0L, source.UploadBytes - subtract.UploadBytes),
+            IoReadBytes = Math.Max(0L, source.IoReadBytes - subtract.IoReadBytes),
+            IoWriteBytes = Math.Max(0L, source.IoWriteBytes - subtract.IoWriteBytes),
+            ForegroundCpuTotal = Math.Max(0d, source.ForegroundCpuTotal - subtract.ForegroundCpuTotal),
+            ForegroundWorkingSetTotal = Math.Max(0d, source.ForegroundWorkingSetTotal - subtract.ForegroundWorkingSetTotal),
+            ForegroundSamples = Math.Max(0, source.ForegroundSamples - subtract.ForegroundSamples),
+            BackgroundCpuTotal = Math.Max(0d, source.BackgroundCpuTotal - subtract.BackgroundCpuTotal),
+            BackgroundWorkingSetTotal = Math.Max(0d, source.BackgroundWorkingSetTotal - subtract.BackgroundWorkingSetTotal),
+            BackgroundSamples = Math.Max(0, source.BackgroundSamples - subtract.BackgroundSamples),
+            ThreadCountTotal = Math.Max(0d, source.ThreadCountTotal - subtract.ThreadCountTotal),
+            ThreadSamples = Math.Max(0, source.ThreadSamples - subtract.ThreadSamples),
+            IoReadOperations = Math.Max(0L, source.IoReadOperations - subtract.IoReadOperations),
+            IoWriteOperations = Math.Max(0L, source.IoWriteOperations - subtract.IoWriteOperations)
+        };
     }
 
     private void RefreshHistoryTopApplications(IReadOnlyList<HistoryOverviewApplicationAggregate> applicationRecords)

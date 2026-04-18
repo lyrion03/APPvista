@@ -1525,15 +1525,49 @@
                                     Padding="16"
                                     Background="#EEF3ED"
                                     CornerRadius="18">
-                                <StackPanel>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
                                     <TextBlock Foreground="#7B7F74"
                                                FontSize="12"
-                                               Text="应用路径" />
-                                    <TextBlock Margin="0,8,0,0"
-                                               Foreground="#506057"
-                                               Text="{Binding HistoryExecutablePathDisplay, StringFormat=路径 {0}}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
+                                               Text="前后台分析" />
+
+                                    <TextBlock Grid.Row="1"
+                                               Margin="0,8,0,0"
+                                               Foreground="#213B35"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Text="前台" />
+                                    <StackPanel Grid.Row="1"
+                                                Margin="0,34,0,0">
+                                        <TextBlock Text="{Binding HistoryAverageForegroundCpuDisplay, StringFormat=平均 CPU {0}}" />
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding HistoryAverageForegroundMemoryDisplay, StringFormat=平均内存 {0}}" />
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding HistoryAverageForegroundIopsDisplay, StringFormat=平均 IOPS {0}}" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="2"
+                                               Margin="0,8,0,0"
+                                               Foreground="#213B35"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Text="后台" />
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="2"
+                                                Margin="0,34,0,0">
+                                        <TextBlock Text="{Binding HistoryAverageBackgroundCpuDisplay, StringFormat=平均 CPU {0}}" />
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding HistoryAverageBackgroundMemoryDisplay, StringFormat=平均内存 {0}}" />
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding HistoryAverageBackgroundIopsDisplay, StringFormat=平均 IOPS {0}}" />
+                                    </StackPanel>
+                                </Grid>
                             </Border>
                         </Grid>
                     </StackPanel>

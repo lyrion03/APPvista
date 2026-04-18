@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
@@ -13,6 +13,15 @@ namespace APPvista.Desktop.ViewModels;
 
 public sealed class HistoryComparisonViewModel : ObservableObject
 {
+    private const string SortByName = "名称";
+    private const string SortByForegroundDuration = "前台时长";
+    private const string SortByForegroundRatio = "前台占比";
+    private const string SortByAverageWorkingSet = "平均工作集";
+    private const string SortByAverageCpu = "平均 CPU";
+    private const string SortByTotalTraffic = "总流量";
+    private const string SortByTotalIo = "I/O总量";
+    private const string SortByAverageIops = "平均 IOPS";
+
     private readonly ApplicationIconCache _applicationIconCache;
     private readonly IReadOnlyDictionary<string, string> _applicationAliases;
     private readonly List<HistoryComparisonMetric> _metricOrder = [];
@@ -37,9 +46,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     private const double ParallelChartRightPadding = 28d;
     private const double ParallelChartMinLabelWidth = 56d;
     private const double ParallelChartViewportSafetyPadding = 12d;
+    private const double ParallelMarkerOffset = 8d;
+    private const double ParallelMarkerMinWidth = 52d;
+    private const double ParallelMarkerHorizontalPadding = 12d;
 
     private bool _isMetricSelectorOpen;
-    private string _windowTitle = "详细对比";
+    private string _selectedApplicationSortOption = SortByName;
+    private string _windowTitle = "璇︾粏瀵规瘮";
     private string _rangeDisplay = string.Empty;
     private double _parallelChartViewportWidth;
 
@@ -62,6 +75,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         ToggleMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = !IsMetricSelectorOpen);
         CloseMetricSelectorCommand = new RelayCommand(() => IsMetricSelectorOpen = false);
         ToggleAllApplicationsCommand = new RelayCommand(ToggleAllApplications);
+        SetSortByNameCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByName);
+        SetSortByForegroundDurationCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByForegroundDuration);
+        SetSortByForegroundRatioCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByForegroundRatio);
+        SetSortByAverageWorkingSetCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByAverageWorkingSet);
+        SetSortByAverageCpuCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByAverageCpu);
+        SetSortByTotalTrafficCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByTotalTraffic);
+        SetSortByTotalIoCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByTotalIo);
+        SetSortByAverageIopsCommand = new RelayCommand(() => SelectedApplicationSortOption = SortByAverageIops);
 
         InitializeMetricOptions();
         Load(windowTitle, rangeDisplay, applicationAggregates);
@@ -77,6 +98,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public ICommand ToggleMetricSelectorCommand { get; }
     public ICommand CloseMetricSelectorCommand { get; }
     public ICommand ToggleAllApplicationsCommand { get; }
+    public ICommand SetSortByNameCommand { get; }
+    public ICommand SetSortByForegroundDurationCommand { get; }
+    public ICommand SetSortByForegroundRatioCommand { get; }
+    public ICommand SetSortByAverageWorkingSetCommand { get; }
+    public ICommand SetSortByAverageCpuCommand { get; }
+    public ICommand SetSortByTotalTrafficCommand { get; }
+    public ICommand SetSortByTotalIoCommand { get; }
+    public ICommand SetSortByAverageIopsCommand { get; }
 
     public string WindowTitle
     {
@@ -96,9 +125,42 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         set => SetProperty(ref _isMetricSelectorOpen, value);
     }
 
+    public string SelectedApplicationSortOption
+    {
+        get => _selectedApplicationSortOption;
+        set
+        {
+            if (!SetProperty(ref _selectedApplicationSortOption, value))
+            {
+                return;
+            }
+
+            RaisePropertyChanged(nameof(ApplicationSortMenuDisplay));
+            RaisePropertyChanged(nameof(IsSortByNameMode));
+            RaisePropertyChanged(nameof(IsSortByForegroundDurationMode));
+            RaisePropertyChanged(nameof(IsSortByForegroundRatioMode));
+            RaisePropertyChanged(nameof(IsSortByAverageWorkingSetMode));
+            RaisePropertyChanged(nameof(IsSortByAverageCpuMode));
+            RaisePropertyChanged(nameof(IsSortByTotalTrafficMode));
+            RaisePropertyChanged(nameof(IsSortByTotalIoMode));
+            RaisePropertyChanged(nameof(IsSortByAverageIopsMode));
+            RefreshAvailableApplicationsOrder();
+            RefreshComparisonRows();
+        }
+    }
+
     public bool HasSelectedApplications => ComparisonRows.Count > 0;
     public bool AllApplicationsSelected => AvailableApplications.Count > 0 && AvailableApplications.All(static item => item.IsSelected);
     public string ToggleAllApplicationsText => AllApplicationsSelected ? "全不选" : "全选";
+    public string ApplicationSortMenuDisplay => $"排序方式：{SelectedApplicationSortOption}";
+    public bool IsSortByNameMode => SelectedApplicationSortOption == SortByName;
+    public bool IsSortByForegroundDurationMode => SelectedApplicationSortOption == SortByForegroundDuration;
+    public bool IsSortByForegroundRatioMode => SelectedApplicationSortOption == SortByForegroundRatio;
+    public bool IsSortByAverageWorkingSetMode => SelectedApplicationSortOption == SortByAverageWorkingSet;
+    public bool IsSortByAverageCpuMode => SelectedApplicationSortOption == SortByAverageCpu;
+    public bool IsSortByTotalTrafficMode => SelectedApplicationSortOption == SortByTotalTraffic;
+    public bool IsSortByTotalIoMode => SelectedApplicationSortOption == SortByTotalIo;
+    public bool IsSortByAverageIopsMode => SelectedApplicationSortOption == SortByAverageIops;
     public bool HasParallelChartSelection => ParallelChartSeries.Count > 0;
     public bool HasParallelChart => ParallelChartAxes.Count >= 2 && ParallelChartSeries.Count > 0;
     public double ParallelChartWidth => GetParallelChartWidth(ParallelChartAxes.Count);
@@ -143,11 +205,10 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         ParallelChartSeries.Clear();
         HighlightedParallelMarkers.Clear();
 
-        foreach (var item in applicationAggregates
-                     .Where(static item => !string.IsNullOrWhiteSpace(item.ProcessName))
-                     .Select(CreateSelectableApplication)
-                     .OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase))
+        foreach (var item in OrderApplications(
+                     applicationAggregates
+                         .Where(static item => !string.IsNullOrWhiteSpace(item.ProcessName))
+                         .Select(CreateSelectableApplication)))
         {
             item.PropertyChanged += OnApplicationSelectionChanged;
             AvailableApplications.Add(item);
@@ -172,8 +233,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         AddMetricOption(HistoryComparisonMetric.PeakThreadCount, "线程峰值", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.ThreadPeakMeanRatio, "线程峰均比", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.TotalTraffic, "总流量", isSelectedByDefault: true);
+        AddMetricOption(HistoryComparisonMetric.DownloadTraffic, "下载流量", isSelectedByDefault: false);
+        AddMetricOption(HistoryComparisonMetric.UploadTraffic, "上传流量", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.PeakTraffic, "网络峰值", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.TotalIo, "I/O 总量", isSelectedByDefault: true);
+        AddMetricOption(HistoryComparisonMetric.ReadIo, "读取 I/O", isSelectedByDefault: false);
+        AddMetricOption(HistoryComparisonMetric.WriteIo, "写入 I/O", isSelectedByDefault: false);
+        AddMetricOption(HistoryComparisonMetric.ReadWriteRatio, "读写比", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.PeakIo, "I/O 峰值", isSelectedByDefault: false);
         AddMetricOption(HistoryComparisonMetric.AverageIops, "平均 IOPS", isSelectedByDefault: false);
     }
@@ -229,11 +295,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             .OrderBy(GetMetricOrderIndex)
             .ToArray();
 
-        var selectedApplications = AvailableApplications
-            .Where(static item => item.IsSelected)
-            .OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var selectedApplications = OrderApplications(AvailableApplications.Where(static item => item.IsSelected));
 
         var rows = selectedApplications
             .Select(item => new HistoryComparisonApplicationRowViewModel(
@@ -285,8 +347,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 HistoryComparisonMetric.PeakThreadCount => new HistoryComparisonMetricDisplayItem("线程峰值", aggregate.PeakThreadCount.ToString(CultureInfo.InvariantCulture)),
                 HistoryComparisonMetric.ThreadPeakMeanRatio => new HistoryComparisonMetricDisplayItem("线程峰均比", aggregate.AverageThreadCount > 0 ? $"{aggregate.ThreadPeakMeanRatio:F2}x" : "-"),
                 HistoryComparisonMetric.TotalTraffic => new HistoryComparisonMetricDisplayItem("总流量", FormatBytes(aggregate.TotalTrafficBytes)),
+                HistoryComparisonMetric.DownloadTraffic => new HistoryComparisonMetricDisplayItem("下载流量", FormatBytes(aggregate.DownloadBytes)),
+                HistoryComparisonMetric.UploadTraffic => new HistoryComparisonMetricDisplayItem("上传流量", FormatBytes(aggregate.UploadBytes)),
                 HistoryComparisonMetric.PeakTraffic => new HistoryComparisonMetricDisplayItem("网络峰值", FormatBytesPerSecond(aggregate.PeakTrafficBytesPerSecond)),
                 HistoryComparisonMetric.TotalIo => new HistoryComparisonMetricDisplayItem("I/O 总量", FormatBytes(aggregate.TotalIoBytes)),
+                HistoryComparisonMetric.ReadIo => new HistoryComparisonMetricDisplayItem("读取 I/O", FormatBytes(aggregate.IoReadBytes)),
+                HistoryComparisonMetric.WriteIo => new HistoryComparisonMetricDisplayItem("写入 I/O", FormatBytes(aggregate.IoWriteBytes)),
+                HistoryComparisonMetric.ReadWriteRatio => new HistoryComparisonMetricDisplayItem("读写比", FormatReadWriteRatio(aggregate.IoReadBytes, aggregate.IoWriteBytes)),
                 HistoryComparisonMetric.PeakIo => new HistoryComparisonMetricDisplayItem("I/O 峰值", FormatBytesPerSecond(aggregate.PeakIoBytesPerSecond)),
                 HistoryComparisonMetric.AverageIops => new HistoryComparisonMetricDisplayItem("平均 IOPS", aggregate.AverageIops.ToString("F1", CultureInfo.InvariantCulture)),
                 _ => new HistoryComparisonMetricDisplayItem(string.Empty, string.Empty)
@@ -326,6 +393,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         var plotTop = ParallelChartTopPadding;
         var plotBottom = chartHeight - ParallelChartBottomPadding;
         var plotHeight = Math.Max(1d, plotBottom - plotTop);
+        var chartWidth = GetParallelChartWidth(metrics.Count);
         var axisSpacing = GetParallelChartAxisSpacing(metrics.Count);
         var axisLabelWidth = GetParallelChartAxisLabelWidth(axisSpacing);
 
@@ -363,12 +431,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 var point = new WpfPoint(axes[metricIndex].X, y);
                 points.Add(point);
                 var value = metricIndex < displayMetrics.Count ? displayMetrics[metricIndex].Value : string.Empty;
+                var labelWidth = EstimateParallelMarkerLabelWidth(value);
                 markers.Add(new HistoryComparisonParallelMarkerViewModel(
                     axes[metricIndex].X,
                     y,
                     value,
-                    axes[metricIndex].X + 8d,
-                    Math.Max(0d, Math.Min(chartHeight - 24d, y + (metricIndex % 2 == 0 ? -24d : 6d)))));
+                    GetParallelMarkerLabelLeft(axes[metricIndex].X, labelWidth, chartWidth),
+                    Math.Max(0d, Math.Min(chartHeight - 24d, y + (metricIndex % 2 == 0 ? -24d : 6d))),
+                    labelWidth));
             }
 
             series.Add(new HistoryComparisonParallelSeriesViewModel(
@@ -440,11 +510,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
         var selectedMetrics = GetOrderedSelectedMetrics();
 
-        var selectedApplications = AvailableApplications
-            .Where(static item => item.IsSelected)
-            .OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var selectedApplications = OrderApplications(AvailableApplications.Where(static item => item.IsSelected));
 
         RefreshParallelChart(selectedApplications, selectedMetrics);
         RaisePropertyChanged(nameof(HasParallelChart));
@@ -598,7 +664,8 @@ public sealed class HistoryComparisonViewModel : ObservableObject
                 left.Y.Equals(right.Y) &&
                 left.Value == right.Value &&
                 left.LabelLeft.Equals(right.LabelLeft) &&
-                left.LabelTop.Equals(right.LabelTop));
+                left.LabelTop.Equals(right.LabelTop) &&
+                left.LabelWidth.Equals(right.LabelWidth));
     }
 
     private ParallelMetricDescriptor? BuildParallelMetricDescriptor(
@@ -666,6 +733,40 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         return true;
     }
 
+    private void RefreshAvailableApplicationsOrder()
+    {
+        var orderedApplications = OrderApplications(AvailableApplications);
+        for (var targetIndex = 0; targetIndex < orderedApplications.Count; targetIndex++)
+        {
+            var application = orderedApplications[targetIndex];
+            var currentIndex = AvailableApplications.IndexOf(application);
+            if (currentIndex >= 0 && currentIndex != targetIndex)
+            {
+                AvailableApplications.Move(currentIndex, targetIndex);
+            }
+        }
+    }
+
+    private List<HistoryComparisonSelectableApplicationViewModel> OrderApplications(
+        IEnumerable<HistoryComparisonSelectableApplicationViewModel> applications)
+    {
+        IOrderedEnumerable<HistoryComparisonSelectableApplicationViewModel> ordered = SelectedApplicationSortOption switch
+        {
+            SortByForegroundDuration => applications.OrderByDescending(static item => item.Aggregate.ForegroundMilliseconds),
+            SortByForegroundRatio => applications.OrderByDescending(static item => item.Aggregate.ForegroundRatio),
+            SortByAverageWorkingSet => applications.OrderByDescending(static item => item.Aggregate.AverageWorkingSetBytes),
+            SortByAverageCpu => applications.OrderByDescending(static item => item.Aggregate.AverageCpu),
+            SortByTotalTraffic => applications.OrderByDescending(static item => item.Aggregate.TotalTrafficBytes),
+            SortByTotalIo => applications.OrderByDescending(static item => item.Aggregate.TotalIoBytes),
+            SortByAverageIops => applications.OrderByDescending(static item => item.Aggregate.AverageIops),
+            _ => applications.OrderBy(static item => item.SortKey, StringComparer.OrdinalIgnoreCase)
+        };
+
+        return ordered
+            .ThenBy(static item => item.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     private static void SyncObservableCollection<T>(
         ObservableCollection<T> target,
         IReadOnlyList<T> source,
@@ -705,8 +806,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             HistoryComparisonMetric.PeakThreadCount => aggregate.PeakThreadCount,
             HistoryComparisonMetric.ThreadPeakMeanRatio => aggregate.ThreadPeakMeanRatio,
             HistoryComparisonMetric.TotalTraffic => aggregate.TotalTrafficBytes,
+            HistoryComparisonMetric.DownloadTraffic => aggregate.DownloadBytes,
+            HistoryComparisonMetric.UploadTraffic => aggregate.UploadBytes,
             HistoryComparisonMetric.PeakTraffic => aggregate.PeakTrafficBytesPerSecond,
             HistoryComparisonMetric.TotalIo => aggregate.TotalIoBytes,
+            HistoryComparisonMetric.ReadIo => aggregate.IoReadBytes,
+            HistoryComparisonMetric.WriteIo => aggregate.IoWriteBytes,
+            HistoryComparisonMetric.ReadWriteRatio => GetReadWriteRatioNumericValue(aggregate.IoReadBytes, aggregate.IoWriteBytes),
             HistoryComparisonMetric.PeakIo => aggregate.PeakIoBytesPerSecond,
             HistoryComparisonMetric.AverageIops => aggregate.AverageIops,
             _ => 0d
@@ -726,8 +832,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             HistoryComparisonMetric.PeakThreadCount => "线程峰值",
             HistoryComparisonMetric.ThreadPeakMeanRatio => "线程峰均比",
             HistoryComparisonMetric.TotalTraffic => "总流量",
+            HistoryComparisonMetric.DownloadTraffic => "下载流量",
+            HistoryComparisonMetric.UploadTraffic => "上传流量",
             HistoryComparisonMetric.PeakTraffic => "网络峰值",
             HistoryComparisonMetric.TotalIo => "I/O 总量",
+            HistoryComparisonMetric.ReadIo => "读取 I/O",
+            HistoryComparisonMetric.WriteIo => "写入 I/O",
+            HistoryComparisonMetric.ReadWriteRatio => "读写比",
             HistoryComparisonMetric.PeakIo => "I/O 峰值",
             HistoryComparisonMetric.AverageIops => "平均 IOPS",
             _ => string.Empty
@@ -747,12 +858,65 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             HistoryComparisonMetric.PeakThreadCount => Math.Round(value, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
             HistoryComparisonMetric.ThreadPeakMeanRatio => value.ToString("F2", CultureInfo.InvariantCulture) + "x",
             HistoryComparisonMetric.TotalTraffic => FormatBytes(value),
+            HistoryComparisonMetric.DownloadTraffic => FormatBytes(value),
+            HistoryComparisonMetric.UploadTraffic => FormatBytes(value),
             HistoryComparisonMetric.PeakTraffic => FormatBytesPerSecond((long)Math.Round(value, MidpointRounding.AwayFromZero)),
             HistoryComparisonMetric.TotalIo => FormatBytes(value),
+            HistoryComparisonMetric.ReadIo => FormatBytes(value),
+            HistoryComparisonMetric.WriteIo => FormatBytes(value),
+            HistoryComparisonMetric.ReadWriteRatio => value.ToString("F2", CultureInfo.InvariantCulture),
             HistoryComparisonMetric.PeakIo => FormatBytesPerSecond((long)Math.Round(value, MidpointRounding.AwayFromZero)),
             HistoryComparisonMetric.AverageIops => value.ToString("F1", CultureInfo.InvariantCulture),
             _ => value.ToString("F1", CultureInfo.InvariantCulture)
         };
+
+    private static double GetReadWriteRatioNumericValue(long readBytes, long writeBytes)
+    {
+        if (readBytes <= 0 && writeBytes <= 0)
+        {
+            return 0d;
+        }
+
+        return readBytes / (double)Math.Max(1L, writeBytes);
+    }
+
+    private static string FormatReadWriteRatio(long readBytes, long writeBytes)
+    {
+        if (readBytes <= 0 && writeBytes <= 0)
+        {
+            return "-";
+        }
+
+        if (writeBytes <= 0)
+        {
+            return "∞";
+        }
+
+        return (readBytes / (double)writeBytes).ToString("F2", CultureInfo.InvariantCulture);
+    }
+
+    private static double EstimateParallelMarkerLabelWidth(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return ParallelMarkerMinWidth;
+        }
+
+        var textWidth = 0d;
+        foreach (var c in value)
+        {
+            textWidth += c <= 0x7F ? 6.5d : 10d;
+        }
+
+        return Math.Max(ParallelMarkerMinWidth, textWidth + ParallelMarkerHorizontalPadding);
+    }
+
+    private static double GetParallelMarkerLabelLeft(double axisX, double labelWidth, double chartWidth)
+    {
+        var preferredLeft = axisX + ParallelMarkerOffset;
+        var maxLeft = Math.Max(0d, chartWidth - labelWidth);
+        return Math.Max(0d, Math.Min(preferredLeft, maxLeft));
+    }
 
     private static string FormatDuration(long milliseconds)
     {
@@ -1039,13 +1203,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
     public sealed class HistoryComparisonParallelMarkerViewModel
     {
-        public HistoryComparisonParallelMarkerViewModel(double x, double y, string value, double labelLeft, double labelTop)
+        public HistoryComparisonParallelMarkerViewModel(double x, double y, string value, double labelLeft, double labelTop, double labelWidth)
         {
             X = x;
             Y = y;
             Value = value;
             LabelLeft = labelLeft;
             LabelTop = labelTop;
+            LabelWidth = labelWidth;
         }
 
         public double X { get; }
@@ -1053,6 +1218,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         public string Value { get; }
         public double LabelLeft { get; }
         public double LabelTop { get; }
+        public double LabelWidth { get; }
     }
 
     public readonly record struct HistoryComparisonMetricDisplayItem(string Label, string Value);
@@ -1077,8 +1243,13 @@ public sealed class HistoryComparisonViewModel : ObservableObject
         PeakThreadCount,
         ThreadPeakMeanRatio,
         TotalTraffic,
+        DownloadTraffic,
+        UploadTraffic,
         PeakTraffic,
         TotalIo,
+        ReadIo,
+        WriteIo,
+        ReadWriteRatio,
         PeakIo,
         AverageIops
     }

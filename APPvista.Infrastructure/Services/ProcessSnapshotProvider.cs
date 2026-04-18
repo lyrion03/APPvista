@@ -100,7 +100,7 @@ public sealed class ProcessSnapshotProvider : IProcessSnapshotProvider
             var interactiveSessionId = Process.GetCurrentProcess().SessionId;
             var activePids = new HashSet<int>();
             var aggregated = new Dictionary<string, AggregatedProcessSample>(StringComparer.OrdinalIgnoreCase);
-            var windowProcessIds = lightweight ? null : GetWindowProcessIds();
+            var windowProcessIds = GetWindowProcessIds();
             var threadCountsByPid = lightweight ? null : GetThreadCountsByProcessId();
             var processNamesByPid = GetProcessNamesByProcessId();
 
@@ -129,10 +129,13 @@ public sealed class ProcessSnapshotProvider : IProcessSnapshotProvider
                             continue;
                         }
 
-                        activePids.Add(processId);
-                        var executablePath = lightweight ? string.Empty : TryGetExecutablePath(processId);
-                        appName = ApplicationIdentityResolver.Resolve(processName, executablePath);
                         var isForeground = processId == foregroundPid;
+                        var hasEnumeratedWindow = windowProcessIds.Contains(processId);
+                        var shouldResolveExecutablePath = !lightweight || isForeground || hasEnumeratedWindow;
+
+                        activePids.Add(processId);
+                        var executablePath = shouldResolveExecutablePath ? TryGetExecutablePath(processId) : string.Empty;
+                        appName = ApplicationIdentityResolver.Resolve(processName, executablePath);
                         var cpuAvailable = lightweight;
                         var ioAvailable = lightweight;
                         var threadCountAvailable = lightweight;
@@ -141,9 +144,7 @@ public sealed class ProcessSnapshotProvider : IProcessSnapshotProvider
                             ? TryGetWorkingSetFast(processId, out var memoryUsage)
                             : TryGetMemoryUsage(processId, out memoryUsage);
                         var ioUsage = lightweight ? IoUsage.Empty : GetIoUsage(processId, now, out ioAvailable);
-                        var hasMainWindow = !lightweight && (
-                            (windowProcessIds is not null && windowProcessIds.Contains(processId)) ||
-                            HasMainWindow(process));
+                        var hasMainWindow = hasEnumeratedWindow || (!lightweight && HasMainWindow(process));
                         var threadCount = lightweight ? 0 : TryGetThreadCount(processId, threadCountsByPid, out threadCountAvailable);
                         var isComplete = lightweight
                             ? memoryUsageAvailable

@@ -13,6 +13,107 @@
     <Window.Resources>
         <services:IconPathToImageSourceConverter x:Key="IconPathToImageSourceConverter" />
 
+        <Style x:Key="OverviewMenuStyle" TargetType="Menu">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="OverviewMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background" Value="#25433C" />
+            <Setter Property="Foreground" Value="#FFF7EC" />
+            <Setter Property="BorderBrush" Value="#2F534A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True" />
+                                <Path x:Name="Arrow"
+                                      Grid.Column="1"
+                                      Margin="14,0,14,0"
+                                      VerticalAlignment="Center"
+                                      Fill="{TemplateBinding Foreground}"
+                                      Data="M 0 0 L 4 4 L 0 8 Z"
+                                      Visibility="Collapsed" />
+                                <Popup x:Name="PART_Popup"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Placement="Bottom"
+                                       PopupAnimation="Fade">
+                                    <Border Margin="0,8,0,0"
+                                            Background="#25433C"
+                                            BorderBrush="#2F534A"
+                                            BorderThickness="1"
+                                            CornerRadius="14">
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Role" Value="SubmenuHeader">
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Right" />
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#3E6B5F" />
+                                <Setter Property="Foreground" Value="#FFF7EC" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#31574D" />
+                    <Setter Property="Foreground" Value="#FFF7EC" />
+                </Trigger>
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                    <Setter Property="Background" Value="#31574D" />
+                    <Setter Property="Foreground" Value="#FFF7EC" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="SelectorToggleStyle" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Background" Value="#FFFDF9" />
@@ -65,7 +166,7 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="14" />
+                        <RowDefinition Height="0" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid>
@@ -85,10 +186,52 @@
                                            FontSize="14"
                                            Text="{Binding RangeDisplay}" />
                             </StackPanel>
-                            <TextBlock Margin="0,8,0,0"
-                                       Foreground="#AFBEB7"
-                                       FontSize="12"
-                                       Text="按名称排序，默认不选。选中后下方会立即刷新统计对比。" />
+                            <Menu Margin="0,8,0,0"
+                                  Style="{StaticResource OverviewMenuStyle}">
+                                <Menu.Resources>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                                    <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                                </Menu.Resources>
+                                <MenuItem Header="{Binding ApplicationSortMenuDisplay}"
+                                          Style="{StaticResource OverviewMenuItemStyle}">
+                                    <MenuItem Header="名称"
+                                              Command="{Binding SetSortByNameCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByNameMode, Mode=OneWay}" />
+                                    <MenuItem Header="前台时长"
+                                              Command="{Binding SetSortByForegroundDurationCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByForegroundDurationMode, Mode=OneWay}" />
+                                    <MenuItem Header="前台占比"
+                                              Command="{Binding SetSortByForegroundRatioCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByForegroundRatioMode, Mode=OneWay}" />
+                                    <MenuItem Header="平均工作集"
+                                              Command="{Binding SetSortByAverageWorkingSetCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByAverageWorkingSetMode, Mode=OneWay}" />
+                                    <MenuItem Header="平均cpu"
+                                              Command="{Binding SetSortByAverageCpuCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByAverageCpuMode, Mode=OneWay}" />
+                                    <MenuItem Header="总流量"
+                                              Command="{Binding SetSortByTotalTrafficCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByTotalTrafficMode, Mode=OneWay}" />
+                                    <MenuItem Header="I/O总量"
+                                              Command="{Binding SetSortByTotalIoCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByTotalIoMode, Mode=OneWay}" />
+                                    <MenuItem Header="平均IOPS"
+                                              Command="{Binding SetSortByAverageIopsCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsSortByAverageIopsMode, Mode=OneWay}" />
+                                </MenuItem>
+                            </Menu>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1"
@@ -449,6 +592,7 @@
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Border Padding="6,3"
+                                                                    Width="{Binding LabelWidth}"
                                                                     Background="#FFFDF9"
                                                                     BorderBrush="#D8CEBE"
                                                                     BorderThickness="1"

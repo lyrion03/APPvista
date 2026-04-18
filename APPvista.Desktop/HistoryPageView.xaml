@@ -144,7 +144,8 @@
                                         Background="#21483D"
                                         BorderBrush="#6EA08F"
                                         BorderThickness="1"
-                                        CornerRadius="26">
+                                        CornerRadius="26"
+                                        ToolTip="查看所选时段的应用详细信息对比">
                                     <ContentPresenter HorizontalAlignment="Center"
                                                       VerticalAlignment="Center" />
                                 </Border>

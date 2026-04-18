@@ -214,6 +214,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public string HistoryAverageIopsDisplay => _historySummary.AverageIopsDisplay;
     public string HistoryMemoryDisplay => _historySummary.MemorySummaryDisplay;
     public string HistoryThreadDisplay => _historySummary.ThreadSummaryDisplay;
+    public string HistoryAverageForegroundCpuDisplay => _historySummary.AverageForegroundCpuDisplay;
+    public string HistoryAverageForegroundMemoryDisplay => _historySummary.AverageForegroundMemoryDisplay;
+    public string HistoryAverageForegroundIopsDisplay => _historySummary.AverageForegroundIopsDisplay;
+    public string HistoryAverageBackgroundCpuDisplay => _historySummary.AverageBackgroundCpuDisplay;
+    public string HistoryAverageBackgroundMemoryDisplay => _historySummary.AverageBackgroundMemoryDisplay;
+    public string HistoryAverageBackgroundIopsDisplay => _historySummary.AverageBackgroundIopsDisplay;
     public string HistoryExecutablePathDisplay => _historySummary.ExecutablePathDisplay;
     public string TodayFocusRatio => BuildFocusRatio(Snapshot.DailyForegroundMilliseconds, Snapshot.DailyBackgroundMilliseconds);
 
@@ -1028,6 +1034,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryAverageIopsDisplay));
         RaisePropertyChanged(nameof(HistoryMemoryDisplay));
         RaisePropertyChanged(nameof(HistoryThreadDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageForegroundCpuDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageForegroundMemoryDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageForegroundIopsDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageBackgroundCpuDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageBackgroundMemoryDisplay));
+        RaisePropertyChanged(nameof(HistoryAverageBackgroundIopsDisplay));
         RaisePropertyChanged(nameof(HistoryExecutablePathDisplay));
         RaisePropertyChanged(nameof(HistoryNetworkChartTitle));
         RaisePropertyChanged(nameof(HistoryIoChartTitle));
@@ -1826,6 +1838,18 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var averageCpuTotal = ordered.Sum(record => record.ForegroundCpuTotal + record.BackgroundCpuTotal);
         var averageMemorySamples = ordered.Sum(record => record.ForegroundSamples + record.BackgroundSamples);
         var averageMemoryTotal = ordered.Sum(record => record.ForegroundWorkingSetTotal + record.BackgroundWorkingSetTotal);
+        var foregroundCpuSamples = ordered.Sum(record => record.ForegroundSamples);
+        var foregroundCpuTotal = ordered.Sum(record => record.ForegroundCpuTotal);
+        var foregroundMemorySamples = ordered.Sum(record => record.ForegroundSamples);
+        var foregroundMemoryTotal = ordered.Sum(record => record.ForegroundWorkingSetTotal);
+        var foregroundMilliseconds = ordered.Sum(record => record.ForegroundMilliseconds);
+        var foregroundIoOperations = ordered.Sum(record => record.ForegroundIoOperations);
+        var backgroundCpuSamples = ordered.Sum(record => record.BackgroundSamples);
+        var backgroundCpuTotal = ordered.Sum(record => record.BackgroundCpuTotal);
+        var backgroundMemorySamples = ordered.Sum(record => record.BackgroundSamples);
+        var backgroundMemoryTotal = ordered.Sum(record => record.BackgroundWorkingSetTotal);
+        var backgroundMilliseconds = ordered.Sum(record => record.BackgroundMilliseconds);
+        var backgroundIoOperations = ordered.Sum(record => record.BackgroundIoOperations);
         var peakWorkingSetBytes = ordered.Max(record => record.PeakWorkingSetBytes);
         var averageIops = ordered.Average(record => record.AverageIops);
         var averageThreadCount = ordered.Average(record => record.AverageThreadCount);
@@ -1839,6 +1863,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : 0d;
         var averageCpu = averageCpuSamples > 0 ? averageCpuTotal / averageCpuSamples : 0d;
         var averageMemoryBytes = averageMemorySamples > 0 ? averageMemoryTotal / averageMemorySamples : 0d;
+        var averageForegroundCpu = foregroundCpuSamples > 0 ? foregroundCpuTotal / foregroundCpuSamples : 0d;
+        var averageForegroundMemoryBytes = foregroundMemorySamples > 0 ? foregroundMemoryTotal / foregroundMemorySamples : 0d;
+        var averageForegroundIops = foregroundMilliseconds > 0 ? foregroundIoOperations / (foregroundMilliseconds / 1000d) : 0d;
+        var averageBackgroundCpu = backgroundCpuSamples > 0 ? backgroundCpuTotal / backgroundCpuSamples : 0d;
+        var averageBackgroundMemoryBytes = backgroundMemorySamples > 0 ? backgroundMemoryTotal / backgroundMemorySamples : 0d;
+        var averageBackgroundIops = backgroundMilliseconds > 0 ? backgroundIoOperations / (backgroundMilliseconds / 1000d) : 0d;
 
         return new ApplicationHistorySummary
         {
@@ -1857,6 +1887,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             AverageIopsDisplay = averageIops.ToString("F1", CultureInfo.InvariantCulture),
             MemorySummaryDisplay = $"均值 {FormatBytes(averageMemoryBytes)} / 峰值 {FormatBytes(peakWorkingSetBytes)}",
             ThreadSummaryDisplay = $"均值 {averageThreadCount:F1} / 峰值 {peakThreadCount}",
+            AverageForegroundCpuDisplay = $"{averageForegroundCpu:F1}%",
+            AverageForegroundMemoryDisplay = FormatBytes(averageForegroundMemoryBytes),
+            AverageForegroundIopsDisplay = averageForegroundIops.ToString("F1", CultureInfo.InvariantCulture),
+            AverageBackgroundCpuDisplay = $"{averageBackgroundCpu:F1}%",
+            AverageBackgroundMemoryDisplay = FormatBytes(averageBackgroundMemoryBytes),
+            AverageBackgroundIopsDisplay = averageBackgroundIops.ToString("F1", CultureInfo.InvariantCulture),
             ExecutablePathDisplay = executablePath,
             ChartStartLabel = firstDay,
             ChartEndLabel = lastDay
@@ -1976,6 +2012,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             AverageIopsDisplay = "0.0",
             MemorySummaryDisplay = "均值 0 B / 峰值 0 B",
             ThreadSummaryDisplay = "均值 0.0 / 峰值 0",
+            AverageForegroundCpuDisplay = "0.0%",
+            AverageForegroundMemoryDisplay = "0 B",
+            AverageForegroundIopsDisplay = "0.0",
+            AverageBackgroundCpuDisplay = "0.0%",
+            AverageBackgroundMemoryDisplay = "0 B",
+            AverageBackgroundIopsDisplay = "0.0",
             ExecutablePathDisplay = "-",
             ChartStartLabel = "-",
             ChartEndLabel = "-"
@@ -1996,6 +2038,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public string AverageIopsDisplay { get; init; } = string.Empty;
         public string MemorySummaryDisplay { get; init; } = string.Empty;
         public string ThreadSummaryDisplay { get; init; } = string.Empty;
+        public string AverageForegroundCpuDisplay { get; init; } = string.Empty;
+        public string AverageForegroundMemoryDisplay { get; init; } = string.Empty;
+        public string AverageForegroundIopsDisplay { get; init; } = string.Empty;
+        public string AverageBackgroundCpuDisplay { get; init; } = string.Empty;
+        public string AverageBackgroundMemoryDisplay { get; init; } = string.Empty;
+        public string AverageBackgroundIopsDisplay { get; init; } = string.Empty;
         public string ExecutablePathDisplay { get; init; } = string.Empty;
         public string ChartStartLabel { get; init; } = string.Empty;
         public string ChartEndLabel { get; init; } = string.Empty;

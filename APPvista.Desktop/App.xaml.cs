@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
     private IDailyProcessActivityStore? _dailyProcessActivityStore;
     private IProcessNetworkUsageSource? _networkUsageSource;
     private IMonitoringDashboardService? _dashboardService;
+    private SystemOverviewProvider? _backgroundSystemOverviewProvider;
     private ApplicationIconCache? _applicationIconCache;
     private ApplicationAliasStore? _applicationAliasStore;
     private ApplicationCardMetricPreferenceStore? _applicationCardMetricPreferenceStore;
@@ -131,6 +132,7 @@ public partial class App : System.Windows.Application
                 _networkUsageSource,
                 isWindowedOnlyRecording));
         StartupPerformanceTrace.MarkDuration("LiveMonitoringDashboardService created", dashboardServiceStarted);
+        InitializeBackgroundSystemOverviewProvider();
 
         InitializeBackgroundSnapshotTimer();
 
@@ -198,6 +200,7 @@ public partial class App : System.Windows.Application
         }
 
         _dashboardService = null;
+        _backgroundSystemOverviewProvider = null;
         _networkUsageSource?.Dispose();
         _networkUsageSource = null;
         base.OnExit(e);
@@ -342,6 +345,24 @@ public partial class App : System.Windows.Application
         _backgroundSnapshotTimer.Start();
     }
 
+    private void InitializeBackgroundSystemOverviewProvider()
+    {
+        if (_backgroundSystemOverviewProvider is not null || string.IsNullOrWhiteSpace(_databasePath))
+        {
+            return;
+        }
+
+        try
+        {
+            _backgroundSystemOverviewProvider = new SystemOverviewProvider(_databasePath);
+            _backgroundSystemOverviewProvider.Capture(includeRealtime: false);
+        }
+        catch
+        {
+            _backgroundSystemOverviewProvider = null;
+        }
+    }
+
     private async void OnBackgroundSnapshotTimerTick(object? sender, EventArgs e)
     {
         if (_isExitRequested || _dashboardService is null || _isBackgroundSnapshotRefreshing || ShouldDeferBackgroundSnapshot())
@@ -352,7 +373,11 @@ public partial class App : System.Windows.Application
         _isBackgroundSnapshotRefreshing = true;
         try
         {
-            await Task.Run(() => _dashboardService.GetSnapshot());
+            await Task.Run(() =>
+            {
+                _dashboardService.GetSnapshot();
+                _backgroundSystemOverviewProvider?.Capture(includeRealtime: false);
+            });
         }
         catch
         {
