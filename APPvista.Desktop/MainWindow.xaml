@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Title="APPvista"
         Width="1800"
-        Height="960"
+        Height="1010"
         MinWidth="1408"
         MinHeight="820"
         Icon="Assets/APPvista.ico"
@@ -839,7 +839,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Foreground="#A9C0B2"
                                                        FontSize="12"
-                                                       Text="下行" />
+                                                       Text="下载" />
                                                 <Border Width="8"
                                                     Height="8"
                                                     Margin="6,3,0,0"
@@ -854,7 +854,7 @@
                                             <TextBlock Margin="0,8,0,0"
                                                    Foreground="#A9C0B2"
                                                    FontSize="12"
-                                                   Text="今日下行" />
+                                                   Text="今日下载" />
                                             <TextBlock Margin="0,4,0,0"
                                                    Foreground="#FFF7EC"
                                                    FontSize="16"
@@ -865,7 +865,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Foreground="#A9C0B2"
                                                        FontSize="12"
-                                                       Text="上行" />
+                                                       Text="上传" />
                                                 <Border Width="8"
                                                     Height="8"
                                                     Margin="6,3,0,0"
@@ -880,7 +880,7 @@
                                             <TextBlock Margin="0,8,0,0"
                                                    Foreground="#A9C0B2"
                                                    FontSize="12"
-                                                   Text="今日上行" />
+                                                   Text="今日上传" />
                                             <TextBlock Margin="0,4,0,0"
                                                    Foreground="#FFF7EC"
                                                    FontSize="16"
@@ -1223,7 +1223,9 @@
                                            Foreground="#FFF7EC"
                                            FontSize="18"
                                            FontWeight="SemiBold"
-                                           Text="{Binding HistoryCalendarSelectionDisplay}" />
+                                           Text="{Binding HistoryCalendarSelectionDisplay}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap" />
                             </StackPanel>
 
                             <Button Grid.Column="1"
@@ -1283,6 +1285,7 @@
                                     <DataTemplate>
                                         <Button Margin="0,0,0,4"
                                                 Command="{Binding SelectCommand}"
+                                                PreviewMouseLeftButtonDown="HistoryCalendarDayButton_OnPreviewMouseLeftButtonDown"
                                                 Cursor="Hand">
                                             <Button.Style>
                                                 <Style TargetType="Button">

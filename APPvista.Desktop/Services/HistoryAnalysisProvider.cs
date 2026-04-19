@@ -77,6 +77,38 @@ public sealed class HistoryAnalysisProvider
         return result;
     }
 
+    public IReadOnlyList<HistoryOverviewApplicationAggregate> LoadOverviewApplicationAggregates(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return [];
+        }
+
+        var ignoredProcesses = LoadIgnoredProcesses();
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = BuildLoadOverviewApplicationAggregatesByDaysSql(selectedDays, ignoredProcesses, command);
+
+        using var reader = command.ExecuteReader();
+        var result = new List<HistoryOverviewApplicationAggregate>();
+        while (reader.Read())
+        {
+            result.Add(new HistoryOverviewApplicationAggregate
+            {
+                ProcessName = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                ExecutablePath = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                ForegroundMilliseconds = reader.GetInt64(2),
+                BackgroundMilliseconds = reader.GetInt64(3),
+                DownloadBytes = reader.GetInt64(4),
+                UploadBytes = reader.GetInt64(5),
+                IoReadBytes = reader.GetInt64(6),
+                IoWriteBytes = reader.GetInt64(7)
+            });
+        }
+
+        return result;
+    }
+
     public IReadOnlyList<HistoryApplicationAggregate> LoadApplicationAggregates(DateOnly startDay, DateOnly endDay)
     {
         if (endDay < startDay)
@@ -90,6 +122,54 @@ public sealed class HistoryAnalysisProvider
         command.CommandText = BuildLoadApplicationAggregatesSql(ignoredProcesses, command);
         command.Parameters.AddWithValue("$startDay", startDay.ToString("yyyy-MM-dd"));
         command.Parameters.AddWithValue("$endDay", endDay.ToString("yyyy-MM-dd"));
+
+        using var reader = command.ExecuteReader();
+        var result = new List<HistoryApplicationAggregate>();
+        while (reader.Read())
+        {
+            result.Add(new HistoryApplicationAggregate
+            {
+                ProcessName = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                ExecutablePath = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                ActiveDays = reader.GetInt32(2),
+                ForegroundMilliseconds = reader.GetInt64(3),
+                BackgroundMilliseconds = reader.GetInt64(4),
+                DownloadBytes = reader.GetInt64(5),
+                UploadBytes = reader.GetInt64(6),
+                IoReadBytes = reader.GetInt64(7),
+                IoWriteBytes = reader.GetInt64(8),
+                ForegroundCpuTotal = reader.GetDouble(9),
+                ForegroundWorkingSetTotal = reader.GetDouble(10),
+                ForegroundSamples = reader.GetInt32(11),
+                BackgroundCpuTotal = reader.GetDouble(12),
+                BackgroundWorkingSetTotal = reader.GetDouble(13),
+                BackgroundSamples = reader.GetInt32(14),
+                PeakWorkingSetBytes = reader.GetInt64(15),
+                ThreadCountTotal = reader.GetDouble(16),
+                ThreadSamples = reader.GetInt32(17),
+                PeakThreadCount = reader.GetInt32(18),
+                IoReadOperations = reader.GetInt64(19),
+                IoWriteOperations = reader.GetInt64(20),
+                PeakDownloadBytesPerSecond = reader.GetInt64(21),
+                PeakUploadBytesPerSecond = reader.GetInt64(22),
+                PeakIoBytesPerSecond = reader.GetInt64(23)
+            });
+        }
+
+        return result;
+    }
+
+    public IReadOnlyList<HistoryApplicationAggregate> LoadApplicationAggregates(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return [];
+        }
+
+        var ignoredProcesses = LoadIgnoredProcesses();
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = BuildLoadApplicationAggregatesByDaysSql(selectedDays, ignoredProcesses, command);
 
         using var reader = command.ExecuteReader();
         var result = new List<HistoryApplicationAggregate>();
@@ -281,6 +361,66 @@ GROUP BY process_name
 ORDER BY process_name COLLATE NOCASE;";
     }
 
+    private static string BuildLoadApplicationAggregatesByDaysSql(
+        IReadOnlyCollection<DateOnly> selectedDays,
+        IReadOnlyList<string> ignoredProcesses,
+        SqliteCommand command)
+    {
+        var selectedDaysClause = BuildSelectedDaysClause(selectedDays, command);
+        return $@"
+SELECT
+    process_name,
+    MAX(executable_path) AS executable_path,
+    COUNT(*) AS active_days,
+    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes,
+    COALESCE(SUM(foreground_cpu_total), 0) AS foreground_cpu_total,
+    COALESCE(SUM(foreground_working_set_total), 0) AS foreground_working_set_total,
+    COALESCE(SUM(foreground_samples), 0) AS foreground_samples,
+    COALESCE(SUM(background_cpu_total), 0) AS background_cpu_total,
+    COALESCE(SUM(background_working_set_total), 0) AS background_working_set_total,
+    COALESCE(SUM(background_samples), 0) AS background_samples,
+    COALESCE(MAX(peak_working_set_bytes), 0) AS peak_working_set_bytes,
+    COALESCE(SUM(thread_count_total), 0) AS thread_count_total,
+    COALESCE(SUM(thread_samples), 0) AS thread_samples,
+    COALESCE(MAX(peak_thread_count), 0) AS peak_thread_count,
+    COALESCE(SUM(io_read_operations), 0) AS io_read_operations,
+    COALESCE(SUM(io_write_operations), 0) AS io_write_operations,
+    COALESCE(MAX(peak_download_bytes_per_second), 0) AS peak_download_bytes_per_second,
+    COALESCE(MAX(peak_upload_bytes_per_second), 0) AS peak_upload_bytes_per_second,
+    COALESCE(MAX(peak_io_bytes_per_second), 0) AS peak_io_bytes_per_second
+FROM daily_process_activity
+WHERE day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
+GROUP BY process_name
+ORDER BY process_name COLLATE NOCASE;";
+    }
+
+    private static string BuildLoadOverviewApplicationAggregatesByDaysSql(
+        IReadOnlyCollection<DateOnly> selectedDays,
+        IReadOnlyList<string> ignoredProcesses,
+        SqliteCommand command)
+    {
+        var selectedDaysClause = BuildSelectedDaysClause(selectedDays, command);
+        return $@"
+SELECT
+    process_name,
+    MAX(executable_path) AS executable_path,
+    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes
+FROM daily_process_activity
+WHERE day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
+GROUP BY process_name
+ORDER BY process_name COLLATE NOCASE;";
+    }
+
     private static string BuildLoadApplicationDailyRecordsSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)
     {
         var dayRankedClause = BuildIgnoredProcessClause(ignoredProcesses, command, "process_name", "ranked");
@@ -344,6 +484,23 @@ LIMIT $limit;";
         }
 
         return $" AND {columnExpression} NOT IN ({string.Join(", ", parameterNames)})";
+    }
+
+    private static string BuildSelectedDaysClause(IReadOnlyCollection<DateOnly> selectedDays, SqliteCommand command)
+    {
+        var orderedDays = selectedDays
+            .Distinct()
+            .OrderBy(static day => day)
+            .ToArray();
+        var parameterNames = new string[orderedDays.Length];
+
+        for (var i = 0; i < orderedDays.Length; i++)
+        {
+            parameterNames[i] = $"$selectedDay{i}";
+            command.Parameters.AddWithValue(parameterNames[i], orderedDays[i].ToString("yyyy-MM-dd"));
+        }
+
+        return string.Join(", ", parameterNames);
     }
 }
 

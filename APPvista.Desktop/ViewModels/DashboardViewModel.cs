@@ -223,6 +223,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         SetHistoryDayDimensionCommand = new RelayCommand(SetHistoryDayDimension);
         SetHistoryWeekDimensionCommand = new RelayCommand(SetHistoryWeekDimension);
         SetHistoryMonthDimensionCommand = new RelayCommand(SetHistoryMonthDimension);
+        SetHistoryCustomDimensionCommand = new RelayCommand(SetHistoryCustomDimension);
         ShowPreviousHistoryMonthCommand = new RelayCommand(ShowPreviousHistoryMonth);
         ShowNextHistoryMonthCommand = new RelayCommand(ShowNextHistoryMonth);
         SetHistoryNetworkTotalDisplayCommand = new RelayCommand(SetHistoryNetworkTotalDisplay);
@@ -1353,7 +1354,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         return _networkDisplayMode == NetworkDisplayMode.Split
-            ? $"下行 {FormatBytesPerSecond(GetRealtimeDownloadBytesPerSecond())} / 今日 {FormatBytes(GetTodayDownloadBytes())}\n上行 {FormatBytesPerSecond(GetRealtimeUploadBytesPerSecond())} / 今日 {FormatBytes(GetTodayUploadBytes())}"
+            ? $"下载 {FormatBytesPerSecond(GetRealtimeDownloadBytesPerSecond())} / 今日 {FormatBytes(GetTodayDownloadBytes())}\n上传 {FormatBytesPerSecond(GetRealtimeUploadBytesPerSecond())} / 今日 {FormatBytes(GetTodayUploadBytes())}"
             : $"总速 {FormatBytesPerSecond(GetRealtimeDownloadBytesPerSecond() + GetRealtimeUploadBytesPerSecond())}\n总量 {FormatBytes(GetTodayDownloadBytes() + GetTodayUploadBytes())}";
     }
 

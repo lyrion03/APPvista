@@ -955,13 +955,15 @@
                         <Border Grid.Column="0"
                                 Padding="12"
                                 Background="#15312B"
-                                CornerRadius="20">
+                                CornerRadius="20"
+                                Margin="0,-8,0,0">
                             <StackPanel>
                                 <TextBlock Foreground="#D9E7DE"
                                            FontSize="12"
                                            HorizontalAlignment="Center"
-                                           Text="分析维度" />
-                                <Button Margin="0,14,0,0"
+                                           Text="统计维度" />
+                                <Button x:Name="HistoryDayDimensionButton"
+                                        Margin="0,14,0,0"
                                         Padding="12,10"
                                         Command="{Binding SetHistoryDayDimensionCommand}"
                                         Content="日">
@@ -997,7 +999,8 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
-                                <Button Margin="0,10,0,0"
+                                <Button x:Name="HistoryWeekDimensionButton"
+                                        Margin="0,10,0,0"
                                         Padding="12,10"
                                         Command="{Binding SetHistoryWeekDimensionCommand}"
                                         Content="周">
@@ -1033,7 +1036,8 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
-                                <Button Margin="0,10,0,0"
+                                <Button x:Name="HistoryMonthDimensionButton"
+                                        Margin="0,10,0,0"
                                         Padding="12,10"
                                         Command="{Binding SetHistoryMonthDimensionCommand}"
                                         Content="月">
@@ -1069,6 +1073,43 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
+                                <Button x:Name="HistoryCustomDimensionButton"
+                                        Margin="0,10,0,0"
+                                        Padding="12,10"
+                                        Command="{Binding SetHistoryCustomDimensionCommand}"
+                                        Content="自选">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#D9E7DE" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderBrush" Value="#355D53" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="FontSize" Value="22" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="16">
+                                                            <ContentPresenter HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHistoryCustomDimension}" Value="True">
+                                                    <Setter Property="Foreground" Value="#15312B" />
+                                                    <Setter Property="Background" Value="#D7E8DB" />
+                                                    <Setter Property="BorderBrush" Value="#D7E8DB" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </Border>
 
@@ -1085,7 +1126,9 @@
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="#506057"
                                                FontSize="14"
-                                               Text="{Binding HistorySelectionDisplay}" />
+                                               Text="{Binding HistorySelectionDisplay}"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap" />
                                     <TextBlock Margin="0,4,0,0"
                                                Foreground="#506057"
                                                FontSize="14"
@@ -1093,44 +1136,6 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                    <Border Margin="0,0,12,0"
-                                            Width="225"
-                                            Padding="16"
-                                            Background="#FFF8EF"
-                                            CornerRadius="18"
-                                            VerticalAlignment="Bottom">
-                                        <StackPanel>
-                                            <TextBlock Foreground="#7B7F74"
-                                                       FontSize="12"
-                                                       Text="总流量" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       FontSize="22"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#223B35"
-                                                       Text="{Binding HistoryTrafficDisplay}"
-                                                       TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Margin="0,0,20,0"
-                                            Width="225"
-                                            Padding="16"
-                                            Background="#EEF3ED"
-                                            CornerRadius="18"
-                                            VerticalAlignment="Bottom">
-                                        <StackPanel>
-                                            <TextBlock Foreground="#7B7F74"
-                                                       FontSize="12"
-                                                       Text="总处理 I/O" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       FontSize="22"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#223B35"
-                                                       Text="{Binding HistoryIoDisplay}"
-                                                       TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-
                                     <Grid VerticalAlignment="Bottom">
                                         <Button x:Name="HistoryDatePickerButton"
                                                 Width="46"
@@ -1155,16 +1160,21 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Popup IsOpen="{Binding IsHistoryDatePickerOpen, Mode=TwoWay}"
-                                           Placement="Bottom"
+                                    <Popup x:Name="HistoryDatePickerPopup"
+                                           IsOpen="{Binding IsHistoryDatePickerOpen, Mode=TwoWay}"
+                                           Placement="Custom"
                                            PlacementTarget="{Binding ElementName=HistoryDatePickerButton}"
-                                           StaysOpen="False">
-                                        <Border Margin="0,0,0,0"
+                                           CustomPopupPlacementCallback="HistoryDatePickerPopup_OnCustomPopupPlacement"
+                                           StaysOpen="True">
+                                        <Border x:Name="HistoryDatePickerPopupRoot"
+                                                Margin="0,0,0,0"
                                                 Padding="10"
                                                 Background="#FFFDF9"
                                                 BorderBrush="#D9D0C0"
                                                 BorderThickness="1"
-                                                CornerRadius="16">
+                                                CornerRadius="16"
+                                                PreviewMouseMove="HistoryDatePickerPopupRoot_OnPreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="HistoryDatePickerPopupRoot_OnPreviewMouseLeftButtonUp">
                                             <Grid Width="300">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
@@ -1231,6 +1241,7 @@
                                                             <Button Margin="0,0,0,6"
                                                                     Height="34"
                                                                     Command="{Binding SelectCommand}"
+                                                                    PreviewMouseLeftButtonDown="HistoryCalendarDayButton_OnPreviewMouseLeftButtonDown"
                                                                     Cursor="Hand">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button">
@@ -1262,6 +1273,9 @@
                                                                                             <Setter Property="Foreground" Value="#A7AAA1" />
                                                                                             <Setter TargetName="Chip" Property="Opacity" Value="0.55" />
                                                                                         </DataTrigger>
+                                                                                        <Trigger Property="IsEnabled" Value="False">
+                                                                                            <Setter TargetName="Chip" Property="Opacity" Value="0.45" />
+                                                                                        </Trigger>
                                                                                         <DataTrigger Binding="{Binding HasData}" Value="True">
                                                                                             <Setter TargetName="Chip" Property="Background" Value="#EAF4EC" />
                                                                                             <Setter TargetName="Chip" Property="BorderBrush" Value="#B7D2C0" />
@@ -1336,11 +1350,12 @@
                                     <StackPanel>
                                         <TextBlock Foreground="#7B7F74"
                                                    FontSize="12"
-                                                   Text="前台时长" />
+                                                   Text="总流量" />
                                         <TextBlock Margin="0,8,0,0"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
-                                                   Text="{Binding HistoryForegroundDurationDisplay}" />
+                                                   Text="{Binding HistoryTrafficDisplay}"
+                                                   TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
 
@@ -1351,11 +1366,12 @@
                                     <StackPanel>
                                         <TextBlock Foreground="#7B7F74"
                                                    FontSize="12"
-                                                   Text="前台占比" />
+                                                   Text="总处理 I/O" />
                                         <TextBlock Margin="0,8,0,0"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
-                                                   Text="{Binding HistoryForegroundRatioDisplay}" />
+                                                   Text="{Binding HistoryIoDisplay}"
+                                                   TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
@@ -1545,7 +1561,7 @@
                                                Foreground="#213B35"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Text="前台" />
+                                               Text="{Binding HistoryForegroundDurationDisplay, StringFormat=前台 · {0}}" />
                                     <StackPanel Grid.Row="1"
                                                 Margin="0,34,0,0">
                                         <TextBlock Text="{Binding HistoryAverageForegroundCpuDisplay, StringFormat=平均 CPU {0}}" />
@@ -1559,7 +1575,7 @@
                                                Foreground="#213B35"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Text="后台" />
+                                               Text="{Binding HistoryBackgroundDurationDisplay, StringFormat=后台 · {0}}" />
                                     <StackPanel Grid.Row="1"
                                                 Grid.Column="2"
                                                 Margin="0,34,0,0">

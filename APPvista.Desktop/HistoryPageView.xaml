@@ -104,6 +104,22 @@
                         <TextBlock HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" Text="月" />
                     </StackPanel>
                 </Button>
+                <Button Command="{Binding SetHistoryCustomDimensionCommand}">
+                    <Button.Style>
+                        <Style BasedOn="{StaticResource HistoryDimensionButtonStyle}" TargetType="Button">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHistoryCustomDimension}" Value="True">
+                                    <Setter Property="Background" Value="#D7E8DB" />
+                                    <Setter Property="Foreground" Value="#15312B" />
+                                    <Setter Property="BorderBrush" Value="#D7E8DB" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <StackPanel>
+                        <TextBlock HorizontalAlignment="Center" FontSize="22" FontWeight="SemiBold" Text="自选" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
 

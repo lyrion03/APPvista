@@ -21,7 +21,8 @@ public sealed partial class DashboardViewModel
     {
         Day,
         Week,
-        Month
+        Month,
+        Custom
     }
 
     private enum HistoryNetworkDisplayMode
@@ -41,6 +42,7 @@ public sealed partial class DashboardViewModel
     private HistoryResourceSummary _historySummary = HistoryResourceSummary.Empty;
     private DateOnly _historyDisplayedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateOnly _historySelectedDate = DateOnly.FromDateTime(DateTime.Today);
+    private readonly HashSet<DateOnly> _historyCustomSelectedDates = [];
     private HistoryNetworkDisplayMode _historyNetworkDisplayMode = HistoryNetworkDisplayMode.Total;
     private HistoryIoDisplayMode _historyIoDisplayMode = HistoryIoDisplayMode.Total;
     private int _historyActiveApplicationCount;
@@ -63,6 +65,7 @@ public sealed partial class DashboardViewModel
     public ICommand SetHistoryDayDimensionCommand { get; }
     public ICommand SetHistoryWeekDimensionCommand { get; }
     public ICommand SetHistoryMonthDimensionCommand { get; }
+    public ICommand SetHistoryCustomDimensionCommand { get; }
     public ICommand ShowPreviousHistoryMonthCommand { get; }
     public ICommand ShowNextHistoryMonthCommand { get; }
     public ICommand SetHistoryNetworkTotalDisplayCommand { get; }
@@ -76,20 +79,28 @@ public sealed partial class DashboardViewModel
     public bool IsHistoryDayDimension => _selectedHistoryDimension == HistoryDimension.Day;
     public bool IsHistoryWeekDimension => _selectedHistoryDimension == HistoryDimension.Week;
     public bool IsHistoryMonthDimension => _selectedHistoryDimension == HistoryDimension.Month;
+    public bool IsHistoryCustomDimension => _selectedHistoryDimension == HistoryDimension.Custom;
     public string HistoryDimensionTitle => _selectedHistoryDimension switch
     {
-        HistoryDimension.Week => "按周统计",
-        HistoryDimension.Month => "按月统计",
-        _ => "按日统计"
+        HistoryDimension.Week => "按周",
+        HistoryDimension.Month => "按月",
+        HistoryDimension.Custom => "自选",
+        _ => "按日"
     };
     public string HistoryDimensionHeadline => _selectedHistoryDimension switch
     {
         HistoryDimension.Week => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount} · 日均活跃应用数 {_historyAverageApplicationCount}",
         HistoryDimension.Month => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount} · 日均活跃应用数 {_historyAverageApplicationCount}",
+        HistoryDimension.Custom => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount} · 日均活跃应用数 {_historyAverageApplicationCount}",
         _ => $"{HistoryDimensionTitle} · 期间活跃应用数 {_historyActiveApplicationCount}"
     };
 
-    public string HistorySummaryCaption => _historySummary.Caption;
+    public string HistorySummaryCaption => _selectedHistoryDimension switch
+    {
+        HistoryDimension.Month => "所选月汇总数据",
+        HistoryDimension.Custom => "所选区间汇总数据",
+        _ => "所选日汇总数据"
+    };
     public bool IsHistoryNetworkTotalMode => _historyNetworkDisplayMode == HistoryNetworkDisplayMode.Total;
     public bool IsHistoryNetworkSplitMode => _historyNetworkDisplayMode == HistoryNetworkDisplayMode.Split;
     public bool IsHistoryIoTotalMode => _historyIoDisplayMode == HistoryIoDisplayMode.Total;
@@ -113,8 +124,9 @@ public sealed partial class DashboardViewModel
 
     public string HistoryCalendarSelectionDisplay => _selectedHistoryDimension switch
     {
-        HistoryDimension.Week => $"已选周：{GetWeekStart(_historySelectedDate):yyyy-MM-dd} 起",
+        HistoryDimension.Week => $"已选周：{GetWeekStart(_historySelectedDate):yyyy-MM-dd}-{GetWeekStart(_historySelectedDate).AddDays(6):yyyy-MM-dd}",
         HistoryDimension.Month => $"已选月：{_historyDisplayedMonth:yyyy 年 MM 月}",
+        HistoryDimension.Custom => $"已选区间：{BuildHistoryCustomRangeDisplay()}",
         _ => $"已选日：{_historySelectedDate:yyyy-MM-dd}"
     };
 
@@ -171,6 +183,11 @@ public sealed partial class DashboardViewModel
         SetHistoryDimension(HistoryDimension.Month);
     }
 
+    private void SetHistoryCustomDimension()
+    {
+        SetHistoryDimension(HistoryDimension.Custom);
+    }
+
     private void SetHistoryNetworkTotalDisplay()
     {
         if (_historyNetworkDisplayMode == HistoryNetworkDisplayMode.Total)
@@ -220,11 +237,23 @@ public sealed partial class DashboardViewModel
         var selectedDimension = _selectedHistoryDimension;
         var selectedDate = _historySelectedDate;
         var displayedMonth = _historyDisplayedMonth;
-        var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
-        var applicationRecords = MergeLiveTodayComparisonApplicationAggregates(
-            _historyAnalysisProvider.LoadApplicationAggregates(rangeStart, rangeEnd),
-            rangeStart,
-            rangeEnd);
+        IReadOnlyList<HistoryApplicationAggregate> applicationRecords;
+        if (selectedDimension == HistoryDimension.Custom)
+        {
+            var selectedDays = GetCustomSelectedDays();
+            applicationRecords = MergeLiveTodayComparisonApplicationAggregates(
+                _historyAnalysisProvider.LoadApplicationAggregates(selectedDays),
+                selectedDays);
+        }
+        else
+        {
+            var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
+            applicationRecords = MergeLiveTodayComparisonApplicationAggregates(
+                _historyAnalysisProvider.LoadApplicationAggregates(rangeStart, rangeEnd),
+                rangeStart,
+                rangeEnd);
+        }
+
         var windowTitle = $"详细对比 · {HistoryDimensionTitle}";
         var rangeDisplay = HistoryCalendarSelectionDisplay;
 
@@ -266,7 +295,23 @@ public sealed partial class DashboardViewModel
 
         var previousDimension = _selectedHistoryDimension;
         _selectedHistoryDimension = dimension;
-        if (dimension == HistoryDimension.Month)
+        if (dimension == HistoryDimension.Custom)
+        {
+            SeedCustomSelectionFromCurrentDimension(previousDimension);
+            _pendingHistorySelectionRange = null;
+        }
+        else if (previousDimension == HistoryDimension.Custom)
+        {
+            var anchorDate = GetHistoryCustomSelectionAnchor();
+            _historySelectedDate = dimension == HistoryDimension.Week
+                ? GetWeekStart(anchorDate)
+                : dimension == HistoryDimension.Month
+                    ? new DateOnly(anchorDate.Year, anchorDate.Month, 1)
+                    : anchorDate;
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+            _pendingHistorySelectionRange = null;
+        }
+        else if (dimension == HistoryDimension.Month)
         {
             _historySelectedDate = _historyDisplayedMonth;
         }
@@ -365,6 +410,35 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(HistoryCalendarSelectionDisplay));
     }
 
+    public void SetHistoryCustomDateSelection(DateOnly date, bool isSelected)
+    {
+        if (_selectedHistoryDimension != HistoryDimension.Custom)
+        {
+            return;
+        }
+
+        var changed = isSelected
+            ? _historyCustomSelectedDates.Add(date)
+            : _historyCustomSelectedDates.Remove(date);
+        if (!changed)
+        {
+            return;
+        }
+
+        RefreshHistoryCalendar();
+        if (_isMainWindowRenderingActive && IsHistoryPageActive)
+        {
+            LoadHistoryAnalysis();
+        }
+        else
+        {
+            _hasDeferredMainWindowRefresh = true;
+        }
+
+        RaisePropertyChanged(nameof(HistoryCalendarSelectionDisplay));
+        RaisePropertyChanged(nameof(HistoryDimensionHeadline));
+    }
+
     private void LoadHistoryAnalysis()
     {
         _ = LoadHistoryAnalysisAsync();
@@ -376,12 +450,21 @@ public sealed partial class DashboardViewModel
         var selectedDimension = _selectedHistoryDimension;
         var selectedDate = _historySelectedDate;
         var displayedMonth = _historyDisplayedMonth;
+        var selectedCustomDays = selectedDimension == HistoryDimension.Custom ? GetCustomSelectedDays() : Array.Empty<DateOnly>();
         var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
 
-        var loaded = await Task.Run(() => new
+        var loaded = await Task.Run(() =>
         {
-            DailyRecords = _historyAnalysisProvider.LoadDailyRecords(maxDays: 120),
-            ApplicationRecords = _historyAnalysisProvider.LoadOverviewApplicationAggregates(rangeStart, rangeEnd)
+            var dailyRecords = _historyAnalysisProvider.LoadDailyRecords(maxDays: 120);
+            var applicationRecords = selectedDimension == HistoryDimension.Custom
+                ? _historyAnalysisProvider.LoadOverviewApplicationAggregates(selectedCustomDays)
+                : _historyAnalysisProvider.LoadOverviewApplicationAggregates(rangeStart, rangeEnd);
+
+            return new
+            {
+                DailyRecords = dailyRecords,
+                ApplicationRecords = applicationRecords
+            };
         });
 
         if (version != _historyAnalysisLoadVersion)
@@ -415,13 +498,15 @@ public sealed partial class DashboardViewModel
         }
 
         RefreshHistoryCalendar();
-        var selectedRecords = SelectHistoryRecords(dailyRecords, selectedDimension, selectedDate, displayedMonth);
-        var applicationRecords = MergeLiveTodayOverviewApplicationAggregates(
-            loaded.ApplicationRecords,
-            rangeStart,
-            rangeEnd);
+        var selectedRecords = SelectHistoryRecords(dailyRecords, selectedDimension, selectedDate, displayedMonth, selectedCustomDays);
+        var applicationRecords = selectedDimension == HistoryDimension.Custom
+            ? MergeLiveTodayOverviewApplicationAggregates(loaded.ApplicationRecords, selectedCustomDays)
+            : MergeLiveTodayOverviewApplicationAggregates(
+                loaded.ApplicationRecords,
+                rangeStart,
+                rangeEnd);
 
-        _historySummary = BuildHistorySummary(selectedRecords, selectedDimension, selectedDate, displayedMonth);
+        _historySummary = BuildHistorySummary(selectedRecords, selectedDimension, selectedDate, displayedMonth, selectedCustomDays);
         _historyActiveApplicationCount = applicationRecords.Count;
         _historyAverageApplicationCount = selectedRecords.Count == 0
             ? 0
@@ -495,18 +580,28 @@ public sealed partial class DashboardViewModel
             {
                 HistoryDimension.Week => date >= selectedWeekStart && date <= selectedWeekEnd,
                 HistoryDimension.Month => date >= _historyDisplayedMonth && date <= monthEnd,
+                HistoryDimension.Custom => _historyCustomSelectedDates.Contains(date),
                 _ => date == _historySelectedDate
             };
+            var isRangeStart = _selectedHistoryDimension == HistoryDimension.Custom
+                ? isSelected && !_historyCustomSelectedDates.Contains(date.AddDays(-1))
+                : isSelected && (_selectedHistoryDimension == HistoryDimension.Day || date == selectedWeekStart || date == _historyDisplayedMonth);
+            var isRangeEnd = _selectedHistoryDimension == HistoryDimension.Custom
+                ? isSelected && !_historyCustomSelectedDates.Contains(date.AddDays(1))
+                : isSelected && (_selectedHistoryDimension == HistoryDimension.Day || date == selectedWeekEnd || date == monthEnd);
+            var isSelectable = date.Month == _historyDisplayedMonth.Month &&
+                               date.Year == _historyDisplayedMonth.Year &&
+                               daysWithData.Contains(date);
 
             HistoryCalendarDays.Add(new HistoryCalendarDayViewModel(
                 date,
                 isInDisplayedMonth: date.Month == _historyDisplayedMonth.Month && date.Year == _historyDisplayedMonth.Year,
                 hasData: daysWithData.Contains(date),
                 isSelected: isSelected,
-                isRangeStart: isSelected && (_selectedHistoryDimension == HistoryDimension.Day || date == selectedWeekStart || date == _historyDisplayedMonth),
-                isRangeEnd: isSelected && (_selectedHistoryDimension == HistoryDimension.Day || date == selectedWeekEnd || date == monthEnd),
-                isSelectable: _selectedHistoryDimension != HistoryDimension.Month && date.Month == _historyDisplayedMonth.Month && date.Year == _historyDisplayedMonth.Year,
-                onSelect: SelectHistoryDate));
+                isRangeStart: isRangeStart,
+                isRangeEnd: isRangeEnd,
+                isSelectable: _selectedHistoryDimension != HistoryDimension.Month && isSelectable,
+                onSelect: OnHistoryCalendarDateInvoked));
         }
     }
 
@@ -527,6 +622,11 @@ public sealed partial class DashboardViewModel
                 displayedMonth,
                 displayedMonth.AddMonths(1).AddDays(-1)
             ),
+            HistoryDimension.Custom =>
+            (
+                selectedDate,
+                selectedDate
+            ),
             _ => (selectedDate, selectedDate)
         };
     }
@@ -539,6 +639,15 @@ public sealed partial class DashboardViewModel
         return applicationRecords;
     }
 
+    private IReadOnlyList<HistoryOverviewApplicationAggregate> MergeLiveTodayOverviewApplicationAggregates(
+        IReadOnlyList<HistoryOverviewApplicationAggregate> applicationRecords,
+        IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        return selectedDays.Contains(DateOnly.FromDateTime(DateTime.Today))
+            ? applicationRecords
+            : applicationRecords;
+    }
+
     private IReadOnlyList<HistoryApplicationAggregate> MergeLiveTodayComparisonApplicationAggregates(
         IReadOnlyList<HistoryApplicationAggregate> applicationRecords,
         DateOnly rangeStart,
@@ -546,6 +655,18 @@ public sealed partial class DashboardViewModel
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         if (today < rangeStart || today > rangeEnd)
+        {
+            return applicationRecords;
+        }
+        return MergeLiveTodayComparisonApplicationAggregates(applicationRecords, [today]);
+    }
+
+    private IReadOnlyList<HistoryApplicationAggregate> MergeLiveTodayComparisonApplicationAggregates(
+        IReadOnlyList<HistoryApplicationAggregate> applicationRecords,
+        IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (!selectedDays.Contains(today))
         {
             return applicationRecords;
         }
@@ -786,12 +907,14 @@ public sealed partial class DashboardViewModel
         IReadOnlyList<HistoryDailyRecord> dailyRecords,
         HistoryDimension dimension,
         DateOnly selectedDate,
-        DateOnly displayedMonth)
+        DateOnly displayedMonth,
+        IReadOnlyCollection<DateOnly>? selectedCustomDays = null)
     {
         return dimension switch
         {
             HistoryDimension.Week => SelectWeekRecords(dailyRecords, selectedDate),
             HistoryDimension.Month => SelectMonthRecords(dailyRecords, displayedMonth),
+            HistoryDimension.Custom => SelectCustomRecords(dailyRecords, selectedCustomDays ?? Array.Empty<DateOnly>()),
             _ => dailyRecords.Where(record => record.Day == selectedDate).OrderBy(record => record.Day).ToList()
         };
     }
@@ -836,11 +959,27 @@ public sealed partial class DashboardViewModel
         return dailyRecords.Where(record => record.Day >= displayedMonth && record.Day <= monthEnd).OrderBy(record => record.Day).ToList();
     }
 
+    private static IReadOnlyList<HistoryDailyRecord> SelectCustomRecords(
+        IReadOnlyList<HistoryDailyRecord> dailyRecords,
+        IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return [];
+        }
+
+        return dailyRecords
+            .Where(record => selectedDays.Contains(record.Day))
+            .OrderBy(record => record.Day)
+            .ToList();
+    }
+
     private static HistoryResourceSummary BuildHistorySummary(
         IReadOnlyList<HistoryDailyRecord> selectedRecords,
         HistoryDimension dimension,
         DateOnly selectedDate,
-        DateOnly displayedMonth)
+        DateOnly displayedMonth,
+        IReadOnlyCollection<DateOnly>? selectedCustomDays = null)
     {
         if (selectedRecords.Count == 0)
         {
@@ -850,8 +989,9 @@ public sealed partial class DashboardViewModel
         var weekStart = GetWeekStart(selectedDate);
         var caption = dimension switch
         {
-            HistoryDimension.Week => $"所选周：{weekStart:yyyy-MM-dd} 起",
+            HistoryDimension.Week => $"所选周：{weekStart:yyyy-MM-dd}-{weekStart.AddDays(6):yyyy-MM-dd}",
             HistoryDimension.Month => $"所选月：{displayedMonth:yyyy 年 MM 月}",
+            HistoryDimension.Custom => $"所选区间：{BuildCustomRangeDisplay(selectedCustomDays ?? Array.Empty<DateOnly>())}",
             _ => $"所选日：{selectedDate:yyyy-MM-dd}"
         };
         var appDownloadBytes = selectedRecords.Sum(record => record.AppDownloadBytes);
@@ -952,7 +1092,7 @@ public sealed partial class DashboardViewModel
     private string BuildHistoryNetworkDisplay(long downloadBytes, long uploadBytes, long peakDownloadBytes, long peakUploadBytes)
     {
         return _historyNetworkDisplayMode == HistoryNetworkDisplayMode.Split
-            ? $"下行 {FormatBytes(downloadBytes)}\n上行 {FormatBytes(uploadBytes)}"
+            ? $"下载 {FormatBytes(downloadBytes)}\n上传 {FormatBytes(uploadBytes)}"
             : $"总量 {FormatBytes(downloadBytes + uploadBytes)}";
     }
 
@@ -1178,6 +1318,122 @@ public sealed partial class DashboardViewModel
         return $"{minutes} 分钟";
     }
 
+    private void OnHistoryCalendarDateInvoked(DateOnly date)
+    {
+        if (_selectedHistoryDimension == HistoryDimension.Custom)
+        {
+            SetHistoryCustomDateSelection(date, !_historyCustomSelectedDates.Contains(date));
+            return;
+        }
+
+        SelectHistoryDate(date);
+    }
+
+    private void SeedCustomSelectionFromCurrentDimension(HistoryDimension previousDimension)
+    {
+        _historyCustomSelectedDates.Clear();
+        var daysWithData = _historyCalendarRecords
+            .Select(static record => record.Day)
+            .ToHashSet();
+
+        switch (previousDimension)
+        {
+            case HistoryDimension.Week:
+            {
+                var weekStart = GetWeekStart(_historySelectedDate);
+                for (var i = 0; i < 7; i++)
+                {
+                    var date = weekStart.AddDays(i);
+                    if (daysWithData.Contains(date))
+                    {
+                        _historyCustomSelectedDates.Add(date);
+                    }
+                }
+
+                break;
+            }
+            case HistoryDimension.Month:
+            {
+                var monthEnd = _historyDisplayedMonth.AddMonths(1).AddDays(-1);
+                for (var date = _historyDisplayedMonth; date <= monthEnd; date = date.AddDays(1))
+                {
+                    if (daysWithData.Contains(date))
+                    {
+                        _historyCustomSelectedDates.Add(date);
+                    }
+                }
+
+                break;
+            }
+            case HistoryDimension.Custom:
+                break;
+            default:
+                if (daysWithData.Contains(_historySelectedDate))
+                {
+                    _historyCustomSelectedDates.Add(_historySelectedDate);
+                }
+                break;
+        }
+    }
+
+    private DateOnly GetHistoryCustomSelectionAnchor() =>
+        _historyCustomSelectedDates.Count > 0
+            ? _historyCustomSelectedDates.Min()
+            : _historySelectedDate;
+
+    private IReadOnlyList<DateOnly> GetCustomSelectedDays() =>
+        _historyCustomSelectedDates
+            .OrderBy(static date => date)
+            .ToArray();
+
+    private string BuildHistoryCustomRangeDisplay() => BuildCustomRangeDisplay(GetCustomSelectedDays());
+
+    private static string BuildCustomRangeDisplay(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return "未选择";
+        }
+
+        return string.Join("、", GetContinuousRanges(selectedDays).Select(static range =>
+            range.Start == range.End
+                ? range.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : $"{range.Start:yyyy-MM-dd}-{range.End:yyyy-MM-dd}"));
+    }
+
+    private static IReadOnlyList<(DateOnly Start, DateOnly End)> GetContinuousRanges(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return [];
+        }
+
+        var ordered = selectedDays
+            .Distinct()
+            .OrderBy(static date => date)
+            .ToArray();
+        var ranges = new List<(DateOnly Start, DateOnly End)>();
+        var rangeStart = ordered[0];
+        var rangeEnd = ordered[0];
+
+        for (var index = 1; index < ordered.Length; index++)
+        {
+            var date = ordered[index];
+            if (date == rangeEnd.AddDays(1))
+            {
+                rangeEnd = date;
+                continue;
+            }
+
+            ranges.Add((rangeStart, rangeEnd));
+            rangeStart = date;
+            rangeEnd = date;
+        }
+
+        ranges.Add((rangeStart, rangeEnd));
+        return ranges;
+    }
+
     private void RaiseHistoryStateChanged()
     {
         RaisePropertyChanged(nameof(IsRealtimePageActive));
@@ -1185,6 +1441,7 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(IsHistoryDayDimension));
         RaisePropertyChanged(nameof(IsHistoryWeekDimension));
         RaisePropertyChanged(nameof(IsHistoryMonthDimension));
+        RaisePropertyChanged(nameof(IsHistoryCustomDimension));
         RaisePropertyChanged(nameof(HistoryDimensionTitle));
         RaisePropertyChanged(nameof(HistoryDimensionHeadline));
         RaisePropertyChanged(nameof(HistoryCalendarMonthDisplay));

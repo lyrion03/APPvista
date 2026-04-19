@@ -2,9 +2,11 @@
 using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using Forms = System.Windows.Forms;
 
 namespace APPvista.Desktop;
 
@@ -21,7 +23,10 @@ public partial class MainWindow : Window
     private bool? _lastHistoryPageActive;
     private bool? _lastHistoryNetworkSplitMode;
     private bool? _lastHistoryIoSplitMode;
+    private bool _isDraggingHistoryCustomSelection;
+    private bool _historyCustomSelectionTarget;
     private bool _isHistoryPageLoaded;
+    private bool _hasAppliedInitialTopAlignment;
     private ImageSource? _pendingHeaderSnapshot;
     private double _pendingHeaderSnapshotHeight;
 
@@ -65,6 +70,8 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ApplyInitialTopAlignment();
+
         if (DataContext is ViewModels.DashboardViewModel viewModel)
         {
             viewModel.SetMainWindowRenderingActive(ShouldRenderWindow());
@@ -253,6 +260,36 @@ public partial class MainWindow : Window
         UpdateApplicationCardViewportWidth();
     }
 
+    private void HistoryCalendarDayButton_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not ViewModels.DashboardViewModel viewModel ||
+            !viewModel.IsHistoryCustomDimension ||
+            sender is not System.Windows.Controls.Button button ||
+            button.DataContext is not ViewModels.HistoryCalendarDayViewModel day ||
+            !day.IsSelectable)
+        {
+            return;
+        }
+
+        _isDraggingHistoryCustomSelection = true;
+        _historyCustomSelectionTarget = !day.IsSelected;
+        viewModel.SetHistoryCustomDateSelection(day.Date, _historyCustomSelectionTarget);
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void ApplyInitialTopAlignment()
+    {
+        if (_hasAppliedInitialTopAlignment)
+        {
+            return;
+        }
+
+        _hasAppliedInitialTopAlignment = true;
+        var screen = Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        Top = screen.WorkingArea.Top;
+    }
+
     private bool ReadHistoryPageState()
     {
         if (DataContext is ViewModels.DashboardViewModel viewModel)
@@ -271,6 +308,69 @@ public partial class MainWindow : Window
     private bool ReadHistoryIoSplitMode()
     {
         return DataContext is ViewModels.DashboardViewModel viewModel && viewModel.IsHistoryIoSplitMode;
+    }
+
+    protected override void OnPreviewMouseMove(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnPreviewMouseMove(e);
+
+        if (!_isDraggingHistoryCustomSelection)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            EndHistoryCustomSelectionDrag();
+            return;
+        }
+
+        if (DataContext is not ViewModels.DashboardViewModel viewModel)
+        {
+            return;
+        }
+
+        var element = InputHitTest(e.GetPosition(this)) as DependencyObject;
+        var button = FindAncestor<System.Windows.Controls.Button>(element);
+        if (button?.DataContext is ViewModels.HistoryCalendarDayViewModel day && day.IsSelectable)
+        {
+            viewModel.SetHistoryCustomDateSelection(day.Date, _historyCustomSelectionTarget);
+        }
+    }
+
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonUp(e);
+        EndHistoryCustomSelectionDrag();
+    }
+
+    private void EndHistoryCustomSelectionDrag()
+    {
+        if (!_isDraggingHistoryCustomSelection)
+        {
+            return;
+        }
+
+        _isDraggingHistoryCustomSelection = false;
+        if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? dependencyObject) where T : DependencyObject
+    {
+        while (dependencyObject is not null)
+        {
+            if (dependencyObject is T target)
+            {
+                return target;
+            }
+
+            dependencyObject = VisualTreeHelper.GetParent(dependencyObject);
+        }
+
+        return null;
     }
 
     private void UpdateApplicationCardViewportWidth()

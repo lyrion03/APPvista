@@ -28,7 +28,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     {
         Day,
         Week,
-        Month
+        Month,
+        Custom
     }
 
     private const int MaxHistorySeconds = 120;
@@ -53,6 +54,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private List<DailyProcessActivitySummary> _historyDailyRecords = [];
     private DateOnly _historyDisplayedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateOnly _historySelectedDate = DateOnly.FromDateTime(DateTime.Today);
+    private readonly HashSet<DateOnly> _historyCustomSelectedDates = [];
     private (HistoryAnalysisDimension TargetDimension, DateOnly RangeStart, DateOnly RangeEnd)? _pendingHistorySelectionRange;
     private bool _isHistoryDatePickerOpen;
 
@@ -141,6 +143,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         SetHistoryDayDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Day));
         SetHistoryWeekDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Week));
         SetHistoryMonthDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Month));
+        SetHistoryCustomDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Custom));
         ToggleHistoryDatePickerCommand = new RelayCommand(ToggleHistoryDatePicker);
         ShowPreviousHistoryMonthCommand = new RelayCommand(ShowPreviousHistoryMonth);
         ShowNextHistoryMonthCommand = new RelayCommand(ShowNextHistoryMonth);
@@ -174,16 +177,19 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public bool IsHistoryDayDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Day;
     public bool IsHistoryWeekDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Week;
     public bool IsHistoryMonthDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Month;
+    public bool IsHistoryCustomDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Custom;
     public string HistoryDimensionTitle => _selectedHistoryDimension switch
     {
         HistoryAnalysisDimension.Week => "按周",
         HistoryAnalysisDimension.Month => "按月",
-        _ => "当日"
+        HistoryAnalysisDimension.Custom => "自选",
+        _ => "按日"
     };
     public string HistorySelectionDisplay => _selectedHistoryDimension switch
     {
-        HistoryAnalysisDimension.Week => $"已选周：{GetWeekStart(_historySelectedDate):yyyy-MM-dd} 起",
+        HistoryAnalysisDimension.Week => $"已选周：{GetWeekStart(_historySelectedDate):yyyy-MM-dd}-{GetWeekStart(_historySelectedDate).AddDays(6):yyyy-MM-dd}",
         HistoryAnalysisDimension.Month => $"已选月：{new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1):yyyy 年 MM 月}",
+        HistoryAnalysisDimension.Custom => $"已选区间：{BuildCustomRangeDisplay(GetCustomSelectedDays())}",
         _ => $"已选日：{_historySelectedDate:yyyy-MM-dd}"
     };
     public DateTime? SelectedHistoryDateTime
@@ -207,6 +213,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public string HistoryActiveDaysDisplay => _historySummary.ActiveDaysDisplay;
     public string HistoryUsageDisplay => _historySummary.TotalUsageDisplay;
     public string HistoryForegroundDurationDisplay => _historySummary.ForegroundDurationDisplay;
+    public string HistoryBackgroundDurationDisplay => _historySummary.BackgroundDurationDisplay;
     public string HistoryForegroundRatioDisplay => _historySummary.ForegroundRatioDisplay;
     public string HistoryTrafficDisplay => BuildHistoryTrafficDisplay();
     public string HistoryIoDisplay => BuildHistoryIoDisplay();
@@ -407,6 +414,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public ICommand SetHistoryDayDimensionCommand { get; }
     public ICommand SetHistoryWeekDimensionCommand { get; }
     public ICommand SetHistoryMonthDimensionCommand { get; }
+    public ICommand SetHistoryCustomDimensionCommand { get; }
     public ICommand ToggleHistoryDatePickerCommand { get; }
     public ICommand ShowPreviousHistoryMonthCommand { get; }
     public ICommand ShowNextHistoryMonthCommand { get; }
@@ -535,7 +543,23 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
         var previousDimension = _selectedHistoryDimension;
         _selectedHistoryDimension = dimension;
-        if (dimension == HistoryAnalysisDimension.Month)
+        if (dimension == HistoryAnalysisDimension.Custom)
+        {
+            SeedCustomSelectionFromCurrentDimension(previousDimension);
+            _pendingHistorySelectionRange = null;
+        }
+        else if (previousDimension == HistoryAnalysisDimension.Custom)
+        {
+            var anchorDate = GetHistoryCustomSelectionAnchor();
+            _historySelectedDate = dimension == HistoryAnalysisDimension.Week
+                ? GetWeekStart(anchorDate)
+                : dimension == HistoryAnalysisDimension.Month
+                    ? new DateOnly(anchorDate.Year, anchorDate.Month, 1)
+                    : anchorDate;
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+            _pendingHistorySelectionRange = null;
+        }
+        else if (dimension == HistoryAnalysisDimension.Month)
         {
             _historySelectedDate = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
         }
@@ -574,13 +598,29 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
         if (_historySelectedDate == normalizedDate)
         {
-            IsHistoryDatePickerOpen = false;
             return;
         }
 
         _historySelectedDate = normalizedDate;
         _historyDisplayedMonth = new DateOnly(date.Year, date.Month, 1);
-        IsHistoryDatePickerOpen = false;
+        ApplyHistorySelection();
+    }
+
+    public void SetHistoryCustomDateSelection(DateOnly date, bool isSelected)
+    {
+        if (_selectedHistoryDimension != HistoryAnalysisDimension.Custom)
+        {
+            return;
+        }
+
+        var changed = isSelected
+            ? _historyCustomSelectedDates.Add(date)
+            : _historyCustomSelectedDates.Remove(date);
+        if (!changed)
+        {
+            return;
+        }
+
         ApplyHistorySelection();
     }
 
@@ -671,8 +711,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private void ApplyHistorySelection()
     {
-        _historyDailyRecords = SelectHistoryRecords(_allHistoryDailyRecords, _selectedHistoryDimension, _historySelectedDate).ToList();
-        _historySummary = BuildHistorySummary(_historyDailyRecords, Snapshot, _selectedHistoryDimension, _historySelectedDate);
+        var customSelectedDays = GetCustomSelectedDays();
+        _historyDailyRecords = SelectHistoryRecords(_allHistoryDailyRecords, _selectedHistoryDimension, _historySelectedDate, customSelectedDays).ToList();
+        _historySummary = BuildHistorySummary(_historyDailyRecords, Snapshot, _selectedHistoryDimension, _historySelectedDate, customSelectedDays);
         RefreshHistoryCalendar();
         RaiseHistoryProperties();
         QueueHistoryChartRefresh();
@@ -698,17 +739,28 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             {
                 HistoryAnalysisDimension.Week => date >= selectedWeekStart && date <= selectedWeekEnd,
                 HistoryAnalysisDimension.Month => date >= monthStart && date <= monthEnd,
+                HistoryAnalysisDimension.Custom => _historyCustomSelectedDates.Contains(date),
                 _ => date == _historySelectedDate
             };
+            var isRangeStart = _selectedHistoryDimension == HistoryAnalysisDimension.Custom
+                ? isSelected && !_historyCustomSelectedDates.Contains(date.AddDays(-1))
+                : isSelected && (_selectedHistoryDimension == HistoryAnalysisDimension.Day || date == selectedWeekStart || date == monthStart);
+            var isRangeEnd = _selectedHistoryDimension == HistoryAnalysisDimension.Custom
+                ? isSelected && !_historyCustomSelectedDates.Contains(date.AddDays(1))
+                : isSelected && (_selectedHistoryDimension == HistoryAnalysisDimension.Day || date == selectedWeekEnd || date == monthEnd);
+            var isSelectable = date.Month == _historyDisplayedMonth.Month &&
+                               date.Year == _historyDisplayedMonth.Year &&
+                               daysWithData.Contains(date);
 
             HistoryCalendarDays.Add(new ApplicationHistoryCalendarDayViewModel(
                 date,
                 isInDisplayedMonth: date.Month == _historyDisplayedMonth.Month && date.Year == _historyDisplayedMonth.Year,
                 hasData: daysWithData.Contains(date),
                 isSelected: isSelected,
-                isRangeStart: isSelected && (_selectedHistoryDimension == HistoryAnalysisDimension.Day || date == selectedWeekStart || date == monthStart),
-                isRangeEnd: isSelected && (_selectedHistoryDimension == HistoryAnalysisDimension.Day || date == selectedWeekEnd || date == monthEnd),
-                onSelect: SetHistorySelectedDate));
+                isRangeStart: isRangeStart,
+                isRangeEnd: isRangeEnd,
+                isSelectable: _selectedHistoryDimension != HistoryAnalysisDimension.Month && isSelectable,
+                onSelect: OnHistoryCalendarDateInvoked));
         }
     }
 
@@ -1019,6 +1071,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(IsHistoryDayDimension));
         RaisePropertyChanged(nameof(IsHistoryWeekDimension));
         RaisePropertyChanged(nameof(IsHistoryMonthDimension));
+        RaisePropertyChanged(nameof(IsHistoryCustomDimension));
         RaisePropertyChanged(nameof(HistoryDimensionTitle));
         RaisePropertyChanged(nameof(HistorySelectionDisplay));
         RaisePropertyChanged(nameof(SelectedHistoryDateTime));
@@ -1027,6 +1080,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryActiveDaysDisplay));
         RaisePropertyChanged(nameof(HistoryUsageDisplay));
         RaisePropertyChanged(nameof(HistoryForegroundDurationDisplay));
+        RaisePropertyChanged(nameof(HistoryBackgroundDurationDisplay));
         RaisePropertyChanged(nameof(HistoryForegroundRatioDisplay));
         RaisePropertyChanged(nameof(HistoryTrafficDisplay));
         RaisePropertyChanged(nameof(HistoryIoDisplay));
@@ -1724,7 +1778,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private static IReadOnlyList<DailyProcessActivitySummary> SelectHistoryRecords(
         IReadOnlyList<DailyProcessActivitySummary> records,
         HistoryAnalysisDimension dimension,
-        DateOnly selectedDate)
+        DateOnly selectedDate,
+        IReadOnlyCollection<DateOnly>? selectedCustomDays = null)
     {
         return dimension switch
         {
@@ -1743,6 +1798,14 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                 {
                     var day = DateOnly.Parse(record.Day, CultureInfo.InvariantCulture);
                     return day.Year == selectedDate.Year && day.Month == selectedDate.Month;
+                })
+                .OrderBy(record => record.Day, StringComparer.Ordinal)
+                .ToList(),
+            HistoryAnalysisDimension.Custom => records
+                .Where(record =>
+                {
+                    var day = DateOnly.Parse(record.Day, CultureInfo.InvariantCulture);
+                    return (selectedCustomDays ?? Array.Empty<DateOnly>()).Contains(day);
                 })
                 .OrderBy(record => record.Day, StringComparer.Ordinal)
                 .ToList(),
@@ -1765,6 +1828,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         {
             HistoryAnalysisDimension.Week => (GetWeekStart(selectedDate), GetWeekStart(selectedDate).AddDays(6)),
             HistoryAnalysisDimension.Month => (new DateOnly(selectedDate.Year, selectedDate.Month, 1), new DateOnly(selectedDate.Year, selectedDate.Month, 1).AddMonths(1).AddDays(-1)),
+            HistoryAnalysisDimension.Custom => (selectedDate, selectedDate),
             _ => (selectedDate, selectedDate)
         };
     }
@@ -1805,12 +1869,14 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         IReadOnlyList<DailyProcessActivitySummary> records,
         ProcessResourceSnapshot snapshot,
         HistoryAnalysisDimension dimension,
-        DateOnly selectedDate)
+        DateOnly selectedDate,
+        IReadOnlyCollection<DateOnly>? selectedCustomDays = null)
     {
         var rangeDisplay = dimension switch
         {
             HistoryAnalysisDimension.Week => $"{GetWeekStart(selectedDate):yyyy-MM-dd} 至 {GetWeekStart(selectedDate).AddDays(6):yyyy-MM-dd}",
             HistoryAnalysisDimension.Month => $"{selectedDate:yyyy 年 MM 月}",
+            HistoryAnalysisDimension.Custom => BuildCustomRangeDisplay(selectedCustomDays ?? Array.Empty<DateOnly>()),
             _ => $"{selectedDate:yyyy-MM-dd}"
         };
 
@@ -1876,6 +1942,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             ActiveDaysDisplay = $"活跃天数 {ordered.Count}",
             TotalUsageDisplay = FormatDuration(totalForegroundMilliseconds + totalBackgroundMilliseconds),
             ForegroundDurationDisplay = FormatDuration(totalForegroundMilliseconds),
+            BackgroundDurationDisplay = FormatDuration(totalBackgroundMilliseconds),
             ForegroundRatioDisplay = $"前台占比 {(focusRatio * 100d).ToString("F1", CultureInfo.InvariantCulture)}%",
             DownloadDisplay = FormatBytes(totalDownloadBytes),
             UploadDisplay = FormatBytes(totalUploadBytes),
@@ -1992,6 +2059,122 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         return $"前台占比 {(ratio * 100d).ToString("F0", CultureInfo.InvariantCulture)}%";
     }
 
+    private void OnHistoryCalendarDateInvoked(DateOnly date)
+    {
+        if (_selectedHistoryDimension == HistoryAnalysisDimension.Custom)
+        {
+            SetHistoryCustomDateSelection(date, !_historyCustomSelectedDates.Contains(date));
+            return;
+        }
+
+        SetHistorySelectedDate(date);
+    }
+
+    private void SeedCustomSelectionFromCurrentDimension(HistoryAnalysisDimension previousDimension)
+    {
+        _historyCustomSelectedDates.Clear();
+        var daysWithData = _allHistoryDailyRecords
+            .Select(record => DateOnly.Parse(record.Day, CultureInfo.InvariantCulture))
+            .ToHashSet();
+
+        switch (previousDimension)
+        {
+            case HistoryAnalysisDimension.Week:
+            {
+                var weekStart = GetWeekStart(_historySelectedDate);
+                for (var i = 0; i < 7; i++)
+                {
+                    var date = weekStart.AddDays(i);
+                    if (daysWithData.Contains(date))
+                    {
+                        _historyCustomSelectedDates.Add(date);
+                    }
+                }
+
+                break;
+            }
+            case HistoryAnalysisDimension.Month:
+            {
+                var monthStart = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+                var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+                for (var date = monthStart; date <= monthEnd; date = date.AddDays(1))
+                {
+                    if (daysWithData.Contains(date))
+                    {
+                        _historyCustomSelectedDates.Add(date);
+                    }
+                }
+
+                break;
+            }
+            case HistoryAnalysisDimension.Custom:
+                break;
+            default:
+                if (daysWithData.Contains(_historySelectedDate))
+                {
+                    _historyCustomSelectedDates.Add(_historySelectedDate);
+                }
+
+                break;
+        }
+    }
+
+    private DateOnly GetHistoryCustomSelectionAnchor() =>
+        _historyCustomSelectedDates.Count > 0
+            ? _historyCustomSelectedDates.Min()
+            : _historySelectedDate;
+
+    private IReadOnlyList<DateOnly> GetCustomSelectedDays() =>
+        _historyCustomSelectedDates
+            .OrderBy(static date => date)
+            .ToArray();
+
+    private static string BuildCustomRangeDisplay(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return "未选择";
+        }
+
+        return string.Join("、", GetContinuousRanges(selectedDays).Select(static range =>
+            range.Start == range.End
+                ? range.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : $"{range.Start:yyyy-MM-dd}-{range.End:yyyy-MM-dd}"));
+    }
+
+    private static IReadOnlyList<(DateOnly Start, DateOnly End)> GetContinuousRanges(IReadOnlyCollection<DateOnly> selectedDays)
+    {
+        if (selectedDays.Count == 0)
+        {
+            return [];
+        }
+
+        var ordered = selectedDays
+            .Distinct()
+            .OrderBy(static date => date)
+            .ToArray();
+        var ranges = new List<(DateOnly Start, DateOnly End)>();
+        var start = ordered[0];
+        var end = ordered[0];
+
+        for (var index = 1; index < ordered.Length; index++)
+        {
+            var date = ordered[index];
+            if (date == end.AddDays(1))
+            {
+                end = date;
+                continue;
+            }
+
+            ranges.Add((start, end));
+            start = date;
+            end = date;
+        }
+
+        ranges.Add((start, end));
+        return ranges;
+    }
+
 
     private sealed record ApplicationHistorySummary
     {
@@ -2001,6 +2184,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             ActiveDaysDisplay = "活跃天数 0",
             TotalUsageDisplay = "00:00:00",
             ForegroundDurationDisplay = "00:00:00",
+            BackgroundDurationDisplay = "00:00:00",
             ForegroundRatioDisplay = "前台占比 0.0%",
             DownloadDisplay = "0 B",
             UploadDisplay = "0 B",
@@ -2027,6 +2211,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public string ActiveDaysDisplay { get; init; } = string.Empty;
         public string TotalUsageDisplay { get; init; } = string.Empty;
         public string ForegroundDurationDisplay { get; init; } = string.Empty;
+        public string BackgroundDurationDisplay { get; init; } = string.Empty;
         public string ForegroundRatioDisplay { get; init; } = string.Empty;
         public string DownloadDisplay { get; init; } = string.Empty;
         public string UploadDisplay { get; init; } = string.Empty;
@@ -2058,6 +2243,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             bool isSelected,
             bool isRangeStart,
             bool isRangeEnd,
+            bool isSelectable,
             Action<DateOnly> onSelect)
         {
             Date = date;
@@ -2071,7 +2257,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             IsRangeStartOnly = isRangeStart && !IsSingleSelection;
             IsRangeEndOnly = isRangeEnd && !IsSingleSelection;
             IsRangeMiddle = isSelected && !isRangeStart && !isRangeEnd;
-            SelectCommand = new RelayCommand(() => onSelect(date));
+            IsSelectable = isSelectable;
+            SelectCommand = new RelayCommand(() => onSelect(date), () => isSelectable);
         }
 
         public DateOnly Date { get; }
@@ -2085,6 +2272,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public bool IsRangeStartOnly { get; }
         public bool IsRangeEndOnly { get; }
         public bool IsRangeMiddle { get; }
+        public bool IsSelectable { get; }
         public ICommand SelectCommand { get; }
     }
 

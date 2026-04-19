@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -16,10 +17,14 @@ public partial class ApplicationDetailWindow : Window
     private const double DetailContentSwitchOffset = 132d;
     private const double DetailContentSwitchDurationMilliseconds = 280d;
     private const double WindowMargin = 24d;
+    private const double HistoryDatePickerPopupGap = 12d;
+    private const double HistoryDatePickerPopupScreenMargin = 12d;
     private const double HistoryChartScrollHintThreshold = 1d;
     private ScrollViewer? _draggingHistoryChartScrollViewer;
     private System.Windows.Point _historyChartDragStart;
     private double _historyChartDragStartOffset;
+    private bool _isDraggingHistoryCustomSelection;
+    private bool _historyCustomSelectionTarget;
     private bool _hasAppliedInitialBounds;
     private bool? _isHistoryContentVisible;
 
@@ -47,6 +52,8 @@ public partial class ApplicationDetailWindow : Window
         Deactivated += OnDeactivated;
         StateChanged += OnStateChanged;
         IsVisibleChanged += OnIsVisibleChanged;
+        LocationChanged += OnWindowBoundsChanged;
+        SizeChanged += OnWindowBoundsChanged;
         SourceInitialized += OnSourceInitialized;
     }
 
@@ -70,6 +77,8 @@ public partial class ApplicationDetailWindow : Window
         Deactivated -= OnDeactivated;
         StateChanged -= OnStateChanged;
         IsVisibleChanged -= OnIsVisibleChanged;
+        LocationChanged -= OnWindowBoundsChanged;
+        SizeChanged -= OnWindowBoundsChanged;
         SourceInitialized -= OnSourceInitialized;
 
         if (DataContext is IDisposable disposable)
@@ -101,6 +110,11 @@ public partial class ApplicationDetailWindow : Window
         ApplyInitialBounds();
     }
 
+    private void OnWindowBoundsChanged(object? sender, EventArgs e)
+    {
+        RefreshHistoryDatePickerPopupPlacement();
+    }
+
     private void CurrentDataSwitchButton_OnClick(object sender, RoutedEventArgs e)
     {
         AnimateDetailSwitchIndicator(0d);
@@ -113,6 +127,8 @@ public partial class ApplicationDetailWindow : Window
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        CloseHistoryDatePicker();
+
         if (e.OldValue is INotifyPropertyChanged oldNotify)
         {
             oldNotify.PropertyChanged -= OnViewModelPropertyChanged;
@@ -137,6 +153,7 @@ public partial class ApplicationDetailWindow : Window
 
     private void OnDeactivated(object? sender, EventArgs e)
     {
+        CloseHistoryDatePicker();
         UpdateRenderingActiveState();
     }
 
@@ -164,6 +181,11 @@ public partial class ApplicationDetailWindow : Window
         if (e.PropertyName == nameof(ApplicationDetailViewModel.IsCurrentDataMode) ||
             e.PropertyName == nameof(ApplicationDetailViewModel.IsHistoryDataMode))
         {
+            if (DataContext is ApplicationDetailViewModel modeViewModel && !modeViewModel.IsHistoryDataMode)
+            {
+                CloseHistoryDatePicker();
+            }
+
             Dispatcher.InvokeAsync(() =>
             {
                 UpdateDetailSwitchIndicator(animated: true);
@@ -187,6 +209,119 @@ public partial class ApplicationDetailWindow : Window
         {
             Dispatcher.InvokeAsync(UpdateHistoryChartScrollHints, DispatcherPriority.Render);
         }
+    }
+
+    private void HistoryCalendarDayButton_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not ApplicationDetailViewModel viewModel ||
+            !viewModel.IsHistoryCustomDimension ||
+            sender is not System.Windows.Controls.Button button ||
+            button.DataContext is not ApplicationDetailViewModel.ApplicationHistoryCalendarDayViewModel day ||
+            !day.IsSelectable)
+        {
+            return;
+        }
+
+        _isDraggingHistoryCustomSelection = true;
+        _historyCustomSelectionTarget = !day.IsSelected;
+        viewModel.SetHistoryCustomDateSelection(day.Date, _historyCustomSelectionTarget);
+        HistoryDatePickerPopupRoot.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void HistoryDatePickerPopupRoot_OnPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isDraggingHistoryCustomSelection)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            EndHistoryCustomSelectionDrag();
+            return;
+        }
+
+        if (DataContext is not ApplicationDetailViewModel viewModel)
+        {
+            return;
+        }
+
+        var element = HistoryDatePickerPopupRoot.InputHitTest(e.GetPosition(HistoryDatePickerPopupRoot)) as DependencyObject;
+        var button = FindAncestor<System.Windows.Controls.Button>(element);
+        if (button?.DataContext is ApplicationDetailViewModel.ApplicationHistoryCalendarDayViewModel day && day.IsSelectable)
+        {
+            viewModel.SetHistoryCustomDateSelection(day.Date, _historyCustomSelectionTarget);
+        }
+    }
+
+    private void HistoryDatePickerPopupRoot_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        EndHistoryCustomSelectionDrag();
+    }
+
+    private CustomPopupPlacement[] HistoryDatePickerPopup_OnCustomPopupPlacement(System.Windows.Size popupSize, System.Windows.Size targetSize, System.Windows.Point offset)
+    {
+        var screen = Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        var area = screen.WorkingArea;
+        var targetTopLeft = HistoryDatePickerButton.PointToScreen(new System.Windows.Point(0d, 0d));
+        var desiredX = targetTopLeft.X + targetSize.Width + HistoryDatePickerPopupGap;
+        var desiredY = targetTopLeft.Y;
+        var maxX = area.Right - popupSize.Width - HistoryDatePickerPopupScreenMargin;
+        var maxY = area.Bottom - popupSize.Height - HistoryDatePickerPopupScreenMargin;
+
+        desiredX = Math.Max(area.Left + HistoryDatePickerPopupScreenMargin, Math.Min(desiredX, maxX));
+        desiredY = Math.Max(area.Top + HistoryDatePickerPopupScreenMargin, Math.Min(desiredY, maxY));
+
+        return
+        [
+            new CustomPopupPlacement(
+                new System.Windows.Point(desiredX - targetTopLeft.X, desiredY - targetTopLeft.Y),
+                PopupPrimaryAxis.Horizontal)
+        ];
+    }
+
+    private void RefreshHistoryDatePickerPopupPlacement()
+    {
+        if (!HistoryDatePickerPopup.IsOpen)
+        {
+            return;
+        }
+
+        var horizontalOffset = HistoryDatePickerPopup.HorizontalOffset;
+        HistoryDatePickerPopup.HorizontalOffset = horizontalOffset + 0.1d;
+        HistoryDatePickerPopup.HorizontalOffset = horizontalOffset;
+    }
+
+    private void CloseHistoryDatePicker()
+    {
+        if (DataContext is ApplicationDetailViewModel viewModel && viewModel.IsHistoryDatePickerOpen)
+        {
+            viewModel.IsHistoryDatePickerOpen = false;
+        }
+    }
+
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonDown(e);
+
+        if (DataContext is not ApplicationDetailViewModel viewModel || !viewModel.IsHistoryDatePickerOpen)
+        {
+            return;
+        }
+
+        var source = e.OriginalSource as DependencyObject;
+        if (IsWithinElement(source, HistoryDatePickerPopupRoot) ||
+            IsWithinElement(source, HistoryDatePickerButton) ||
+            IsWithinElement(source, HistoryDayDimensionButton) ||
+            IsWithinElement(source, HistoryWeekDimensionButton) ||
+            IsWithinElement(source, HistoryMonthDimensionButton) ||
+            IsWithinElement(source, HistoryCustomDimensionButton))
+        {
+            return;
+        }
+
+        viewModel.IsHistoryDatePickerOpen = false;
     }
 
     private void UpdateDetailSwitchIndicator(bool animated)
@@ -562,7 +697,7 @@ public partial class ApplicationDetailWindow : Window
         Width = Math.Min(Width, maxWidth);
         Height = Math.Min(Height, maxHeight);
         Left = area.Left + Math.Max(WindowMargin, (area.Width - Width) / 2d);
-        Top = area.Top + Math.Max(WindowMargin, (area.Height - Height) / 2d);
+        Top = area.Top;
     }
 
     private void UpdateRenderingActiveState()
@@ -571,6 +706,88 @@ public partial class ApplicationDetailWindow : Window
         {
             viewModel.SetWindowRenderingActive(ShouldRenderWindow());
         }
+    }
+
+    protected override void OnPreviewMouseMove(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnPreviewMouseMove(e);
+
+        if (!_isDraggingHistoryCustomSelection)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            EndHistoryCustomSelectionDrag();
+            return;
+        }
+
+        if (DataContext is not ApplicationDetailViewModel viewModel)
+        {
+            return;
+        }
+
+        var element = InputHitTest(e.GetPosition(this)) as DependencyObject;
+        var button = FindAncestor<System.Windows.Controls.Button>(element);
+        if (button?.DataContext is ApplicationDetailViewModel.ApplicationHistoryCalendarDayViewModel day && day.IsSelectable)
+        {
+            viewModel.SetHistoryCustomDateSelection(day.Date, _historyCustomSelectionTarget);
+        }
+    }
+
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonUp(e);
+        EndHistoryCustomSelectionDrag();
+    }
+
+    private void EndHistoryCustomSelectionDrag()
+    {
+        if (!_isDraggingHistoryCustomSelection)
+        {
+            return;
+        }
+
+        _isDraggingHistoryCustomSelection = false;
+        if (HistoryDatePickerPopupRoot.IsMouseCaptured)
+        {
+            HistoryDatePickerPopupRoot.ReleaseMouseCapture();
+        }
+        else if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? dependencyObject) where T : DependencyObject
+    {
+        while (dependencyObject is not null)
+        {
+            if (dependencyObject is T target)
+            {
+                return target;
+            }
+
+            dependencyObject = VisualTreeHelper.GetParent(dependencyObject);
+        }
+
+        return null;
+    }
+
+    private static bool IsWithinElement(DependencyObject? source, DependencyObject element)
+    {
+        while (source is not null)
+        {
+            if (ReferenceEquals(source, element))
+            {
+                return true;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 
     private bool ShouldRenderWindow() => IsVisible && WindowState != WindowState.Minimized;
