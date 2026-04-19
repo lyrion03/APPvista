@@ -150,24 +150,34 @@
 
                 <StackPanel Grid.Column="2">
                     <TextBlock Foreground="#D5E5DA"
-                               FontSize="13"
-                               Text="{Binding StateDisplay}" />
+                               FontSize="{Binding HeaderCaptionFontSize}"
+                               FontWeight="{Binding HeaderCaptionFontWeight}"
+                               Text="{Binding HeaderTitleDisplay}"
+                               Visibility="{Binding ShowHeaderState, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Foreground="#D5E5DA"
+                               FontSize="{Binding HeaderTitleFontSize}"
+                               FontWeight="{Binding HeaderTitleFontWeight}"
+                               Text="{Binding HeaderCaptionDisplay}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding ShowHeaderExecutablePath, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <TextBlock Margin="0,6,0,0"
                                Foreground="#FFF7EB"
-                               FontSize="30"
-                               FontWeight="SemiBold"
-                               Text="{Binding DisplayNameWithOriginal}"
+                               FontSize="{Binding HeaderCaptionFontSize}"
+                               FontWeight="{Binding HeaderCaptionFontWeight}"
+                               Text="{Binding HeaderTitleDisplay}"
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,10,0,0"
                                Foreground="#F3C37B"
                                FontSize="15"
-                               Text="{Binding TodayFocusRatio}" />
+                               Text="{Binding TodayFocusRatio}"
+                               Visibility="{Binding ShowHeaderFocusRatio, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
 
                 <Border Grid.Column="4"
                         Padding="0"
                         Background="#25433C"
-                        CornerRadius="20">
+                        CornerRadius="20"
+                        Visibility="{Binding ShowDataModeSwitch, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="104" />
@@ -195,6 +205,7 @@
                                 Width="104"
                                 Padding="18,10"
                                 Click="CurrentDataSwitchButton_OnClick"
+                                IsEnabled="{Binding CanShowCurrentData}"
                                 Command="{Binding ShowCurrentDataCommand}"
                                 Content="当前">
                             <Button.Style>

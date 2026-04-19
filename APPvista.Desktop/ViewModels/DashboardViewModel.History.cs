@@ -837,7 +837,10 @@ public sealed partial class DashboardViewModel
             rank.ToString(CultureInfo.InvariantCulture),
             BuildHistoryApplicationDisplayName(record.ProcessName, record.ExecutablePath),
             metricDisplay,
-            string.IsNullOrWhiteSpace(record.ExecutablePath) ? null : _applicationIconCache.GetIconPath(record.ExecutablePath));
+            string.IsNullOrWhiteSpace(record.ExecutablePath) ? null : _applicationIconCache.GetIconPath(record.ExecutablePath),
+            record.ProcessName,
+            record.ExecutablePath,
+            new RelayCommand(() => OpenHistoryRankingApplication(record.ProcessName, record.ExecutablePath)));
     }
 
     private string BuildHistoryApplicationDisplayName(string processName, string executablePath)
@@ -879,8 +882,85 @@ public sealed partial class DashboardViewModel
                 left.Rank == right.Rank &&
                 left.ApplicationName == right.ApplicationName &&
                 left.MetricDisplay == right.MetricDisplay &&
-                left.IconSourcePath == right.IconSourcePath);
+                left.IconSourcePath == right.IconSourcePath &&
+                left.ProcessName == right.ProcessName &&
+                left.ExecutablePath == right.ExecutablePath &&
+                Equals(left.OpenDetailsCommand, right.OpenDetailsCommand));
     }
+
+    private void OpenHistoryRankingApplication(string processName, string executablePath)
+    {
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return;
+        }
+
+        var liveApplication = FindHistoryRankingLiveApplication(processName, executablePath);
+        var displayName = BuildHistoryApplicationDisplayName(processName, executablePath);
+        var detailWindow = OpenHistoryDetailWindow(processName, executablePath, displayName, liveApplication);
+        if (detailWindow.DataContext is not ApplicationDetailViewModel detailViewModel)
+        {
+            return;
+        }
+
+        detailViewModel.ApplyHistorySelectionFromDashboard(GetHistorySelectionDimensionKey(), _historySelectedDate, _historyCustomSelectedDates);
+        detailViewModel.ActivateHistoryMode();
+        BringDetailWindowToFront(detailWindow);
+    }
+
+    private ApplicationCardViewModel? FindHistoryRankingLiveApplication(string processName, string executablePath)
+    {
+        return Applications.FirstOrDefault(application =>
+            (!string.IsNullOrWhiteSpace(executablePath) &&
+             string.Equals(application.Snapshot.ExecutablePath, executablePath, StringComparison.OrdinalIgnoreCase)) ||
+            string.Equals(application.OriginalName, processName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private ApplicationDetailWindow OpenHistoryDetailWindow(
+        string processName,
+        string executablePath,
+        string displayName,
+        ApplicationCardViewModel? liveApplication)
+    {
+        var windowKey = liveApplication?.AliasKey ?? ApplicationAliasStore.CreateKey(executablePath, processName);
+        var shouldOpenHistoryOnly = liveApplication is null;
+        if (_openDetailWindows.TryGetValue(windowKey, out var existingWindow) &&
+            existingWindow.DataContext is ApplicationDetailViewModel existingViewModel &&
+            existingViewModel.IsHistoryOnlyMode != shouldOpenHistoryOnly)
+        {
+            existingWindow.Close();
+        }
+
+        if (_openDetailWindows.TryGetValue(windowKey, out existingWindow))
+        {
+            return existingWindow;
+        }
+
+        ApplicationDetailWindow detailWindow;
+        if (liveApplication is not null)
+        {
+            detailWindow = new ApplicationDetailWindow(new ApplicationDetailViewModel(liveApplication, _detailDisplayPreferences, _databasePath));
+        }
+        else
+        {
+            var iconSourcePath = string.IsNullOrWhiteSpace(executablePath) ? null : _applicationIconCache.GetIconPath(executablePath);
+            detailWindow = new ApplicationDetailWindow(
+                new ApplicationDetailViewModel(processName, displayName, executablePath, iconSourcePath, _detailDisplayPreferences, _databasePath));
+        }
+
+        _openDetailWindows[windowKey] = detailWindow;
+        detailWindow.Closed += (_, _) => _openDetailWindows.Remove(windowKey);
+        detailWindow.Show();
+        return detailWindow;
+    }
+
+    private string GetHistorySelectionDimensionKey() => _selectedHistoryDimension switch
+    {
+        HistoryDimension.Week => "week",
+        HistoryDimension.Month => "month",
+        HistoryDimension.Custom => "custom",
+        _ => "day"
+    };
 
     private void SetHistoryTopN(int value)
     {
@@ -1522,18 +1602,32 @@ public sealed class HistoryCalendarDayViewModel
 
 public sealed class HistoryRankingItemViewModel
 {
-    public HistoryRankingItemViewModel(string rank, string applicationName, string metricDisplay, string? iconSourcePath)
+    public HistoryRankingItemViewModel(
+        string rank,
+        string applicationName,
+        string metricDisplay,
+        string? iconSourcePath,
+        string processName = "",
+        string executablePath = "",
+        ICommand? openDetailsCommand = null)
     {
         Rank = rank;
         ApplicationName = applicationName;
         MetricDisplay = metricDisplay;
         IconSourcePath = iconSourcePath;
+        ProcessName = processName;
+        ExecutablePath = executablePath;
+        OpenDetailsCommand = openDetailsCommand;
     }
 
     public string Rank { get; }
     public string ApplicationName { get; }
     public string MetricDisplay { get; }
     public string? IconSourcePath { get; }
+    public string ProcessName { get; }
+    public string ExecutablePath { get; }
+    public ICommand? OpenDetailsCommand { get; }
+    public bool IsNavigable => OpenDetailsCommand is not null;
 }
 
 internal readonly record struct HistoryResourceSummary(

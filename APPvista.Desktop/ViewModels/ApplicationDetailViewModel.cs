@@ -77,12 +77,41 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private double _historyChartViewportWidth = DefaultHistoryChartViewportWidth;
     private int _historySummaryLoadVersion;
     private bool _isDisposed;
+    private readonly bool _isHistoryOnlyMode;
 
     public ApplicationDetailViewModel(ApplicationCardViewModel application, DetailDisplayPreferences preferences, string databasePath)
+        : this(application, preferences, databasePath, isHistoryOnlyMode: false, initialDataMode: DetailDataMode.Current)
+    {
+    }
+
+    public ApplicationDetailViewModel(
+        string processName,
+        string displayName,
+        string executablePath,
+        string? iconSourcePath,
+        DetailDisplayPreferences preferences,
+        string databasePath)
+        : this(
+            CreateHistoryOnlyApplicationCard(processName, displayName, executablePath, iconSourcePath),
+            preferences,
+            databasePath,
+            isHistoryOnlyMode: true,
+            initialDataMode: DetailDataMode.History)
+    {
+    }
+
+    private ApplicationDetailViewModel(
+        ApplicationCardViewModel application,
+        DetailDisplayPreferences preferences,
+        string databasePath,
+        bool isHistoryOnlyMode,
+        DetailDataMode initialDataMode)
     {
         _application = application;
         _preferences = preferences;
         _historyAnalysisProvider = new ApplicationHistoryAnalysisProvider(databasePath);
+        _isHistoryOnlyMode = isHistoryOnlyMode;
+        _selectedDataMode = initialDataMode;
         _refreshTimer = new DispatcherTimer
         {
             Interval = RefreshInterval
@@ -172,6 +201,19 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : $"{_application.DisplayName}（原名：{_application.OriginalName}）";
     public string? IconSourcePath => _application.IconSourcePath;
     public string StateDisplay => _application.StateDisplay;
+    public bool IsHistoryOnlyMode => _isHistoryOnlyMode;
+    public bool CanShowCurrentData => !_isHistoryOnlyMode;
+    public bool ShowDataModeSwitch => !_isHistoryOnlyMode;
+    public bool ShowHeaderState => !_isHistoryOnlyMode;
+    public bool ShowHeaderFocusRatio => !_isHistoryOnlyMode;
+    public bool ShowHeaderExecutablePath => _isHistoryOnlyMode;
+    public string HeaderExecutablePathDisplay => HistoryExecutablePathDisplay;
+    public string HeaderCaptionDisplay => _isHistoryOnlyMode ? DisplayNameWithOriginal : StateDisplay;
+    public string HeaderTitleDisplay => _isHistoryOnlyMode ? HistoryExecutablePathDisplay : DisplayNameWithOriginal;
+    public double HeaderCaptionFontSize => _isHistoryOnlyMode ? 15d : 13d;
+    public double HeaderTitleFontSize => _isHistoryOnlyMode ? 18d : 30d;
+    public System.Windows.FontWeight HeaderCaptionFontWeight => _isHistoryOnlyMode ? System.Windows.FontWeights.SemiBold : System.Windows.FontWeights.Normal;
+    public System.Windows.FontWeight HeaderTitleFontWeight => _isHistoryOnlyMode ? System.Windows.FontWeights.Normal : System.Windows.FontWeights.SemiBold;
     public bool IsCurrentDataMode => _selectedDataMode == DetailDataMode.Current;
     public bool IsHistoryDataMode => _selectedDataMode == DetailDataMode.History;
     public bool IsHistoryDayDimension => _selectedHistoryDimension == HistoryAnalysisDimension.Day;
@@ -505,6 +547,11 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private void ShowCurrentData()
     {
+        if (!CanShowCurrentData)
+        {
+            return;
+        }
+
         if (_selectedDataMode == DetailDataMode.Current)
         {
             return;
@@ -969,6 +1016,13 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(DisplayNameWithOriginal));
         RaisePropertyChanged(nameof(IconSourcePath));
         RaisePropertyChanged(nameof(StateDisplay));
+        RaisePropertyChanged(nameof(HeaderCaptionDisplay));
+        RaisePropertyChanged(nameof(HeaderCaptionFontSize));
+        RaisePropertyChanged(nameof(HeaderCaptionFontWeight));
+        RaisePropertyChanged(nameof(HeaderTitleDisplay));
+        RaisePropertyChanged(nameof(HeaderTitleFontSize));
+        RaisePropertyChanged(nameof(HeaderTitleFontWeight));
+        RaisePropertyChanged(nameof(HeaderExecutablePathDisplay));
         RaisePropertyChanged(nameof(ProcessCountDisplay));
         RaisePropertyChanged(nameof(ProcessIdDisplay));
         RaisePropertyChanged(nameof(ExecutablePathDisplay));
@@ -1094,12 +1148,89 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryAverageBackgroundCpuDisplay));
         RaisePropertyChanged(nameof(HistoryAverageBackgroundMemoryDisplay));
         RaisePropertyChanged(nameof(HistoryAverageBackgroundIopsDisplay));
+        RaisePropertyChanged(nameof(HeaderTitleDisplay));
         RaisePropertyChanged(nameof(HistoryExecutablePathDisplay));
+        RaisePropertyChanged(nameof(HeaderExecutablePathDisplay));
         RaisePropertyChanged(nameof(HistoryNetworkChartTitle));
         RaisePropertyChanged(nameof(HistoryIoChartTitle));
         RaisePropertyChanged(nameof(HistoryChartXAxisStartLabel));
         RaisePropertyChanged(nameof(HistoryChartXAxisEndLabel));
         RaisePropertyChanged(nameof(HistoryChartDisplayWidth));
+    }
+
+    public void ActivateHistoryMode()
+    {
+        ShowHistoryData();
+    }
+
+    public void ApplyHistorySelectionFromDashboard(string dimensionKey, DateOnly selectedDate, IReadOnlyCollection<DateOnly>? customSelectedDates)
+    {
+        var targetDimension = ParseHistoryDimension(dimensionKey);
+        _pendingHistorySelectionRange = null;
+
+        if (targetDimension == HistoryAnalysisDimension.Custom)
+        {
+            _historyCustomSelectedDates.Clear();
+            foreach (var date in (customSelectedDates ?? []).OrderBy(static date => date))
+            {
+                _historyCustomSelectedDates.Add(date);
+            }
+
+            if (_historyCustomSelectedDates.Count == 0)
+            {
+                _historyCustomSelectedDates.Add(selectedDate);
+            }
+
+            var anchorDate = GetHistoryCustomSelectionAnchor();
+            _historySelectedDate = anchorDate;
+            _historyDisplayedMonth = new DateOnly(anchorDate.Year, anchorDate.Month, 1);
+        }
+        else
+        {
+            _historySelectedDate = targetDimension switch
+            {
+                HistoryAnalysisDimension.Week => GetWeekStart(selectedDate),
+                HistoryAnalysisDimension.Month => new DateOnly(selectedDate.Year, selectedDate.Month, 1),
+                _ => selectedDate
+            };
+            _historyDisplayedMonth = new DateOnly(_historySelectedDate.Year, _historySelectedDate.Month, 1);
+        }
+
+        _selectedHistoryDimension = targetDimension;
+        ApplyHistorySelection();
+    }
+
+    private static HistoryAnalysisDimension ParseHistoryDimension(string dimensionKey) =>
+        dimensionKey switch
+        {
+            "week" => HistoryAnalysisDimension.Week,
+            "month" => HistoryAnalysisDimension.Month,
+            "custom" => HistoryAnalysisDimension.Custom,
+            _ => HistoryAnalysisDimension.Day
+        };
+
+    private static ApplicationCardViewModel CreateHistoryOnlyApplicationCard(
+        string processName,
+        string displayName,
+        string executablePath,
+        string? iconSourcePath)
+    {
+        var snapshot = new ProcessResourceSnapshot
+        {
+            ProcessName = processName,
+            ExecutablePath = executablePath ?? string.Empty,
+            IconCachePath = iconSourcePath ?? string.Empty
+        };
+        var customName = string.Equals(displayName, processName, StringComparison.Ordinal)
+            ? null
+            : displayName;
+
+        return new ApplicationCardViewModel(
+            snapshot,
+            customName,
+            static (_, _) => { },
+            static _ => { },
+            new ApplicationCardMetricPreferences());
     }
 
     private void AppendCurrentSamples(DateTime timestampUtc)

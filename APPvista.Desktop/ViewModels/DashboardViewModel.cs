@@ -1060,16 +1060,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     {
         if (_openDetailWindows.TryGetValue(application.AliasKey, out var existingWindow))
         {
-            if (existingWindow.WindowState == WindowState.Minimized)
-            {
-                existingWindow.WindowState = WindowState.Normal;
-            }
-
-            existingWindow.Show();
-            existingWindow.Activate();
-            existingWindow.Topmost = true;
-            existingWindow.Topmost = false;
-            existingWindow.Focus();
+            BringDetailWindowToFront(existingWindow);
             return;
         }
 
@@ -1077,6 +1068,20 @@ public sealed partial class DashboardViewModel : ObservableObject
         _openDetailWindows[application.AliasKey] = detailWindow;
         detailWindow.Closed += (_, _) => _openDetailWindows.Remove(application.AliasKey);
         detailWindow.Show();
+    }
+
+    private static void BringDetailWindowToFront(Window detailWindow)
+    {
+        if (detailWindow.WindowState == WindowState.Minimized)
+        {
+            detailWindow.WindowState = WindowState.Normal;
+        }
+
+        detailWindow.Show();
+        detailWindow.Activate();
+        detailWindow.Topmost = true;
+        detailWindow.Topmost = false;
+        detailWindow.Focus();
     }
 
     private void ToggleBlacklistPopup()
