@@ -8,7 +8,7 @@
         MinWidth="960"
         MinHeight="720"
         Background="#F5F0E6"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="CenterScreen"
         WindowState="Maximized">
     <Window.Resources>
         <services:IconPathToImageSourceConverter x:Key="IconPathToImageSourceConverter" />

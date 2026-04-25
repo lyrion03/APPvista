@@ -105,6 +105,7 @@ public sealed partial class DashboardViewModel
     public string HistorySummaryCaption => _selectedHistoryDimension switch
     {
         HistoryDimension.Month => "所选月汇总数据",
+        HistoryDimension.Week => "所选周汇总数据",
         HistoryDimension.Custom => "所选区间汇总数据",
         _ => "所选日汇总数据"
     };
@@ -286,7 +287,6 @@ public sealed partial class DashboardViewModel
             rangeDisplay);
         var comparisonWindow = new APPvista.Desktop.HistoryComparisonWindow(viewModel)
         {
-            Owner = System.Windows.Application.Current?.MainWindow,
             WindowState = WindowState.Maximized
         };
         _historyComparisonWindow = comparisonWindow;
@@ -1066,6 +1066,15 @@ public sealed partial class DashboardViewModel
             var iconSourcePath = string.IsNullOrWhiteSpace(executablePath) ? null : _applicationIconCache.GetIconPathImmediate(executablePath);
             detailWindow = new ApplicationDetailWindow(
                 new ApplicationDetailViewModel(processName, displayName, executablePath, iconSourcePath, _detailDisplayPreferences, _databasePath));
+        }
+
+        if (_historyComparisonWindow is { IsLoaded: true })
+        {
+            detailWindow.Owner = _historyComparisonWindow;
+        }
+        else if (System.Windows.Application.Current?.MainWindow is { } mainWindow)
+        {
+            detailWindow.Owner = mainWindow;
         }
 
         _openDetailWindows[windowKey] = detailWindow;
