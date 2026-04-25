@@ -111,6 +111,7 @@ public sealed partial class DashboardViewModel : ObservableObject
     private ForegroundBackgroundDisplayMode _foregroundBackgroundDisplayMode = ForegroundBackgroundDisplayMode.Hidden;
     private OverviewDataSourceMode _overviewDataSourceMode = OverviewDataSourceMode.ApplicationSum;
     private bool _isWindowedOnlyRecording;
+    private bool _reorderCardsOnRefresh;
     private bool _isMainWindowRenderingActive = true;
     private bool _hasDeferredMainWindowRefresh;
     private bool _pendingBlacklistCandidateRefresh;
@@ -204,6 +205,8 @@ public sealed partial class DashboardViewModel : ObservableObject
         SetRefreshInterval2SecondsCommand = new RelayCommand(() => SelectedRefreshInterval = RefreshEvery2Seconds);
         SetRefreshInterval5SecondsCommand = new RelayCommand(() => SelectedRefreshInterval = RefreshEvery5Seconds);
         SetRefreshInterval10SecondsCommand = new RelayCommand(() => SelectedRefreshInterval = RefreshEvery10Seconds);
+        SetCardReorderOffCommand = new RelayCommand(SetCardReorderOff);
+        SetCardReorderOnCommand = new RelayCommand(SetCardReorderOn);
         SetNetworkHiddenDisplayCommand = new RelayCommand(SetNetworkHiddenDisplay);
         SetNetworkTotalDisplayCommand = new RelayCommand(SetNetworkTotalDisplay);
         SetNetworkSplitDisplayCommand = new RelayCommand(SetNetworkSplitDisplay);
@@ -236,7 +239,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         {
             Interval = _selectedRefreshInterval.Interval
         };
-        _refreshTimer.Tick += (_, _) => _ = RefreshAsync(shouldSort: false);
+        _refreshTimer.Tick += (_, _) => _ = RefreshAsync(shouldSort: _reorderCardsOnRefresh);
 
         SyncCustomMetricSelection();
     }
@@ -344,6 +347,8 @@ public sealed partial class DashboardViewModel : ObservableObject
     public string RefreshIntervalDisplay => SelectedRefreshInterval.Label;
     public string SortMenuDisplay => $"排序：{SelectedSortOption}";
     public string RefreshIntervalMenuDisplay => $"刷新周期：{RefreshIntervalDisplay}";
+    public bool IsCardReorderOffMode => !_reorderCardsOnRefresh;
+    public bool IsCardReorderOnMode => _reorderCardsOnRefresh;
     public int SelectedCustomMetricCount => CustomMetricGroups.SelectMany(static group => group.Options).Count(static option => option.IsSelected);
     public string CustomMetricSelectionSummary =>
         $"已选 {SelectedCustomMetricCount} 项，请选择 {ApplicationCardMetricPreferences.MinimumSelectedMetricCount}-{ApplicationCardMetricPreferences.MaximumSelectedMetricCount} 项";
@@ -417,6 +422,8 @@ public sealed partial class DashboardViewModel : ObservableObject
     public ICommand SetRefreshInterval2SecondsCommand { get; }
     public ICommand SetRefreshInterval5SecondsCommand { get; }
     public ICommand SetRefreshInterval10SecondsCommand { get; }
+    public ICommand SetCardReorderOffCommand { get; }
+    public ICommand SetCardReorderOnCommand { get; }
     public ICommand SetNetworkHiddenDisplayCommand { get; }
     public ICommand SetNetworkTotalDisplayCommand { get; }
     public ICommand SetNetworkSplitDisplayCommand { get; }
@@ -612,7 +619,7 @@ public sealed partial class DashboardViewModel : ObservableObject
                     }
                     if (IsHistoryPageActive)
                     {
-                        LoadHistoryAnalysis();
+                        RefreshHistoryAnalysisFromCurrentSnapshot();
                     }
 
                     RaisePropertyChanged(nameof(HeaderTimestamp));
@@ -1211,6 +1218,30 @@ public sealed partial class DashboardViewModel : ObservableObject
         RaisePropertyChanged(nameof(IsRefreshInterval10SecondsMode));
     }
 
+    private void RaiseCardReorderModeProperties()
+    {
+        RaisePropertyChanged(nameof(IsCardReorderOffMode));
+        RaisePropertyChanged(nameof(IsCardReorderOnMode));
+    }
+
+    private void SetCardReorderOff()
+    {
+        if (_reorderCardsOnRefresh)
+        {
+            _reorderCardsOnRefresh = false;
+            RaiseCardReorderModeProperties();
+        }
+    }
+
+    private void SetCardReorderOn()
+    {
+        if (!_reorderCardsOnRefresh)
+        {
+            _reorderCardsOnRefresh = true;
+            RaiseCardReorderModeProperties();
+        }
+    }
+
     private void SetNetworkHiddenDisplay()
     {
         if (_networkDisplayMode != NetworkDisplayMode.Hidden)
@@ -1481,7 +1512,7 @@ public sealed partial class DashboardViewModel : ObservableObject
 
             if (IsHistoryPageActive)
             {
-                LoadHistoryAnalysis();
+                RefreshHistoryAnalysisFromCurrentSnapshot();
             }
 
             return;
@@ -1493,7 +1524,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         RaiseDisplayStateChanged();
         if (IsHistoryPageActive)
         {
-            LoadHistoryAnalysis();
+            RefreshHistoryAnalysisFromCurrentSnapshot();
         }
     }
 

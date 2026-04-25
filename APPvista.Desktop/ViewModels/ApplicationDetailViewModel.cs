@@ -50,6 +50,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private DetailDataMode _selectedDataMode = DetailDataMode.Current;
     private HistoryAnalysisDimension _selectedHistoryDimension = HistoryAnalysisDimension.Day;
     private ApplicationHistorySummary _historySummary = ApplicationHistorySummary.Empty;
+    private List<DailyProcessActivitySummary> _historyDatabaseDailyRecords = [];
     private List<DailyProcessActivitySummary> _allHistoryDailyRecords = [];
     private List<DailyProcessActivitySummary> _historyDailyRecords = [];
     private DateOnly _historyDisplayedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
@@ -78,6 +79,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private int _historySummaryLoadVersion;
     private bool _isDisposed;
     private readonly bool _isHistoryOnlyMode;
+    private bool _hasLoadedHistoryDatabaseRecords;
 
     public ApplicationDetailViewModel(ApplicationCardViewModel application, DetailDisplayPreferences preferences, string databasePath)
         : this(application, preferences, databasePath, isHistoryOnlyMode: false, initialDataMode: DetailDataMode.Current)
@@ -728,10 +730,11 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             return;
         }
 
-        MergeTodayRecord(records);
-        _allHistoryDailyRecords = records
+        _historyDatabaseDailyRecords = records
             .OrderBy(record => record.Day, StringComparer.Ordinal)
             .ToList();
+        _hasLoadedHistoryDatabaseRecords = true;
+        _allHistoryDailyRecords = BuildMergedHistoryDailyRecords();
         if (_pendingHistorySelectionRange is { } pendingRange && _selectedHistoryDimension == pendingRange.TargetDimension)
         {
             var resolvedDate = pendingRange.TargetDimension switch
@@ -758,6 +761,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private void ApplyHistorySelection()
     {
+        _allHistoryDailyRecords = BuildMergedHistoryDailyRecords();
         var customSelectedDays = GetCustomSelectedDays();
         _historyDailyRecords = SelectHistoryRecords(_allHistoryDailyRecords, _selectedHistoryDimension, _historySelectedDate, customSelectedDays).ToList();
         _historySummary = BuildHistorySummary(_historyDailyRecords, Snapshot, _selectedHistoryDimension, _historySelectedDate, customSelectedDays);
@@ -766,10 +770,19 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         QueueHistoryChartRefresh();
     }
 
+    private List<DailyProcessActivitySummary> BuildMergedHistoryDailyRecords()
+    {
+        var records = _historyDatabaseDailyRecords
+            .OrderBy(record => record.Day, StringComparer.Ordinal)
+            .ToList();
+        MergeTodayRecord(records);
+        return records
+            .OrderBy(record => record.Day, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private void RefreshHistoryCalendar()
     {
-        HistoryCalendarDays.Clear();
-
         var firstVisible = GetWeekStart(_historyDisplayedMonth);
         var selectedWeekStart = GetWeekStart(_historySelectedDate);
         var selectedWeekEnd = selectedWeekStart.AddDays(6);
@@ -778,6 +791,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var daysWithData = _allHistoryDailyRecords
             .Select(record => DateOnly.Parse(record.Day, CultureInfo.InvariantCulture))
             .ToHashSet();
+
+        EnsureHistoryCalendarDaySlots();
 
         for (var i = 0; i < 42; i++)
         {
@@ -799,15 +814,22 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                                date.Year == _historyDisplayedMonth.Year &&
                                daysWithData.Contains(date);
 
-            HistoryCalendarDays.Add(new ApplicationHistoryCalendarDayViewModel(
+            HistoryCalendarDays[i].Update(
                 date,
                 isInDisplayedMonth: date.Month == _historyDisplayedMonth.Month && date.Year == _historyDisplayedMonth.Year,
                 hasData: daysWithData.Contains(date),
                 isSelected: isSelected,
                 isRangeStart: isRangeStart,
                 isRangeEnd: isRangeEnd,
-                isSelectable: _selectedHistoryDimension != HistoryAnalysisDimension.Month && isSelectable,
-                onSelect: OnHistoryCalendarDateInvoked));
+                isSelectable: _selectedHistoryDimension != HistoryAnalysisDimension.Month && isSelectable);
+        }
+    }
+
+    private void EnsureHistoryCalendarDaySlots()
+    {
+        while (HistoryCalendarDays.Count < 42)
+        {
+            HistoryCalendarDays.Add(new ApplicationHistoryCalendarDayViewModel(OnHistoryCalendarDateInvoked));
         }
     }
 
@@ -934,7 +956,18 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
         if (_pendingHistoryRefresh && _isWindowRenderingActive && _selectedDataMode == DetailDataMode.History)
         {
-            LoadHistorySummary();
+            _pendingHistoryRefresh = false;
+            if (HistorySelectionIncludesToday())
+            {
+                if (_hasLoadedHistoryDatabaseRecords)
+                {
+                    ApplyHistorySelection();
+                }
+                else
+                {
+                    LoadHistorySummary();
+                }
+            }
         }
 
         if (_pendingChartRefresh && _isWindowRenderingActive && _selectedDataMode == DetailDataMode.Current)
@@ -1113,6 +1146,22 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         QueueHistoryChartRefresh();
     }
 
+    private bool HistorySelectionIncludesToday()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return _selectedHistoryDimension switch
+        {
+            HistoryAnalysisDimension.Week =>
+                today >= GetWeekStart(_historySelectedDate) &&
+                today <= GetWeekStart(_historySelectedDate).AddDays(6),
+            HistoryAnalysisDimension.Month =>
+                today.Year == _historySelectedDate.Year &&
+                today.Month == _historySelectedDate.Month,
+            HistoryAnalysisDimension.Custom => _historyCustomSelectedDates.Contains(today),
+            _ => _historySelectedDate == today
+        };
+    }
+
     private void RaiseDataModeProperties()
     {
         RaisePropertyChanged(nameof(IsCurrentDataMode));
@@ -1284,22 +1333,25 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private static SingleChartRenderResult BuildChartImage(TimedMetricSample[] history, int historySeconds, bool splitMode, bool isNetwork)
     {
         var nowUtc = DateTime.UtcNow;
-        var primary = new double[historySeconds];
-        var secondary = new double[historySeconds];
-
-        foreach (var sample in history)
-        {
-            var ageSeconds = (int)Math.Floor((nowUtc - sample.TimestampUtc).TotalSeconds);
-            if (ageSeconds < 0 || ageSeconds >= historySeconds)
+        var points = history
+            .Select(sample => new
             {
-                continue;
-            }
+                X = historySeconds - Math.Max(0d, (nowUtc - sample.TimestampUtc).TotalSeconds),
+                sample.PrimaryValue,
+                sample.SecondaryValue
+            })
+            .Where(sample => sample.X >= 0d && sample.X <= historySeconds)
+            .OrderBy(static sample => sample.X)
+            .ToArray();
 
-            var index = historySeconds - 1 - ageSeconds;
-            primary[index] = sample.PrimaryValue;
-            secondary[index] = sample.SecondaryValue;
+        if (points.Length == 0)
+        {
+            return SingleChartRenderResult.Empty;
         }
 
+        var xs = points.Select(static sample => sample.X).ToArray();
+        var primary = points.Select(static sample => sample.PrimaryValue).ToArray();
+        var secondary = points.Select(static sample => sample.SecondaryValue).ToArray();
         var total = primary.Zip(secondary, static (left, right) => left + right).ToArray();
         var maxValue = splitMode
             ? Math.Max(primary.Max(), secondary.Max())
@@ -1316,24 +1368,27 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         plot.Axes.Bottom.MajorTickStyle.Length = 0;
         plot.Axes.Left.MajorTickStyle.Length = 0;
         plot.Axes.Frame(false);
-        plot.Axes.SetLimitsX(0, historySeconds - 1);
+        plot.Axes.SetLimitsX(0, historySeconds);
         plot.Axes.SetLimitsY(0, yAxisMax);
         plot.Axes.Margins(bottom: 0.02, top: 0.04, left: 0, right: 0);
 
         if (splitMode)
         {
-            var first = plot.Add.Signal(primary);
+            var first = plot.Add.Scatter(xs, primary);
             first.Color = ScottPlot.Color.FromHex(isNetwork ? "#2D8CFF" : "#17766C");
             first.LineWidth = 2;
-            var second = plot.Add.Signal(secondary);
+            first.MarkerSize = 0;
+            var second = plot.Add.Scatter(xs, secondary);
             second.Color = ScottPlot.Color.FromHex(isNetwork ? "#FF8A3D" : "#D06A43");
             second.LineWidth = 2;
+            second.MarkerSize = 0;
         }
         else
         {
-            var line = plot.Add.Signal(total);
+            var line = plot.Add.Scatter(xs, total);
             line.Color = ScottPlot.Color.FromHex(isNetwork ? "#2A6FBB" : "#176B5A");
             line.LineWidth = 2;
+            line.MarkerSize = 0;
         }
 
         using var surface = SKSurface.Create(new SKImageInfo(ChartWidth, ChartHeight, SKColorType.Bgra8888, SKAlphaType.Premul));
@@ -2365,17 +2420,111 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public string ChartEndLabel { get; init; } = string.Empty;
     }
 
-    public sealed class ApplicationHistoryCalendarDayViewModel
+    public sealed class ApplicationHistoryCalendarDayViewModel : ObservableObject
     {
-        public ApplicationHistoryCalendarDayViewModel(
+        private readonly RelayCommand _selectCommand;
+        private readonly Action<DateOnly> _onSelect;
+        private DateOnly _date;
+        private string _dayNumber = string.Empty;
+        private bool _isInDisplayedMonth;
+        private bool _hasData;
+        private bool _isSelected;
+        private bool _isRangeStart;
+        private bool _isRangeEnd;
+        private bool _isSingleSelection;
+        private bool _isRangeStartOnly;
+        private bool _isRangeEndOnly;
+        private bool _isRangeMiddle;
+        private bool _isSelectable;
+
+        public ApplicationHistoryCalendarDayViewModel(Action<DateOnly> onSelect)
+        {
+            _onSelect = onSelect;
+            _selectCommand = new RelayCommand(() => _onSelect(Date), () => IsSelectable);
+        }
+
+        public DateOnly Date
+        {
+            get => _date;
+            private set => SetProperty(ref _date, value);
+        }
+
+        public string DayNumber
+        {
+            get => _dayNumber;
+            private set => SetProperty(ref _dayNumber, value);
+        }
+
+        public bool IsInDisplayedMonth
+        {
+            get => _isInDisplayedMonth;
+            private set => SetProperty(ref _isInDisplayedMonth, value);
+        }
+
+        public bool HasData
+        {
+            get => _hasData;
+            private set => SetProperty(ref _hasData, value);
+        }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            private set => SetProperty(ref _isSelected, value);
+        }
+
+        public bool IsRangeStart
+        {
+            get => _isRangeStart;
+            private set => SetProperty(ref _isRangeStart, value);
+        }
+
+        public bool IsRangeEnd
+        {
+            get => _isRangeEnd;
+            private set => SetProperty(ref _isRangeEnd, value);
+        }
+
+        public bool IsSingleSelection
+        {
+            get => _isSingleSelection;
+            private set => SetProperty(ref _isSingleSelection, value);
+        }
+
+        public bool IsRangeStartOnly
+        {
+            get => _isRangeStartOnly;
+            private set => SetProperty(ref _isRangeStartOnly, value);
+        }
+
+        public bool IsRangeEndOnly
+        {
+            get => _isRangeEndOnly;
+            private set => SetProperty(ref _isRangeEndOnly, value);
+        }
+
+        public bool IsRangeMiddle
+        {
+            get => _isRangeMiddle;
+            private set => SetProperty(ref _isRangeMiddle, value);
+        }
+
+        public bool IsSelectable
+        {
+            get => _isSelectable;
+            private set => SetProperty(ref _isSelectable, value);
+        }
+
+        public ICommand SelectCommand => _selectCommand;
+
+        public void Update(
             DateOnly date,
             bool isInDisplayedMonth,
             bool hasData,
             bool isSelected,
             bool isRangeStart,
             bool isRangeEnd,
-            bool isSelectable,
-            Action<DateOnly> onSelect)
+            bool isSelectable)
         {
             Date = date;
             DayNumber = date.Day.ToString(CultureInfo.InvariantCulture);
@@ -2389,22 +2538,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             IsRangeEndOnly = isRangeEnd && !IsSingleSelection;
             IsRangeMiddle = isSelected && !isRangeStart && !isRangeEnd;
             IsSelectable = isSelectable;
-            SelectCommand = new RelayCommand(() => onSelect(date), () => isSelectable);
+            _selectCommand.NotifyCanExecuteChanged();
         }
-
-        public DateOnly Date { get; }
-        public string DayNumber { get; }
-        public bool IsInDisplayedMonth { get; }
-        public bool HasData { get; }
-        public bool IsSelected { get; }
-        public bool IsRangeStart { get; }
-        public bool IsRangeEnd { get; }
-        public bool IsSingleSelection { get; }
-        public bool IsRangeStartOnly { get; }
-        public bool IsRangeEndOnly { get; }
-        public bool IsRangeMiddle { get; }
-        public bool IsSelectable { get; }
-        public ICommand SelectCommand { get; }
     }
 
     private sealed record TimedMetricSample(DateTime TimestampUtc, double PrimaryValue, double SecondaryValue);

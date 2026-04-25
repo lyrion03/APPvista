@@ -310,55 +310,89 @@ FROM system_daily_io_totals;";
     private static string BuildLoadApplicationAggregatesSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)
     {
         return $@"
+WITH latest_paths AS (
+    SELECT process_name, executable_path
+    FROM (
+        SELECT
+            process_name,
+            executable_path,
+            ROW_NUMBER() OVER (
+                PARTITION BY process_name
+                ORDER BY day DESC
+            ) AS path_rank
+        FROM daily_process_activity
+        WHERE TRIM(COALESCE(executable_path, '')) <> ''
+    )
+    WHERE path_rank = 1
+)
 SELECT
-    process_name,
-    MAX(executable_path) AS executable_path,
+    d.process_name,
+    COALESCE(lp.executable_path, '') AS executable_path,
     COUNT(*) AS active_days,
-    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(download_bytes), 0) AS download_bytes,
-    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
-    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
-    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes,
-    COALESCE(SUM(foreground_cpu_total), 0) AS foreground_cpu_total,
-    COALESCE(SUM(foreground_working_set_total), 0) AS foreground_working_set_total,
-    COALESCE(SUM(foreground_samples), 0) AS foreground_samples,
-    COALESCE(SUM(background_cpu_total), 0) AS background_cpu_total,
-    COALESCE(SUM(background_working_set_total), 0) AS background_working_set_total,
-    COALESCE(SUM(background_samples), 0) AS background_samples,
-    COALESCE(MAX(peak_working_set_bytes), 0) AS peak_working_set_bytes,
-    COALESCE(SUM(thread_count_total), 0) AS thread_count_total,
-    COALESCE(SUM(thread_samples), 0) AS thread_samples,
-    COALESCE(MAX(peak_thread_count), 0) AS peak_thread_count,
-    COALESCE(SUM(io_read_operations), 0) AS io_read_operations,
-    COALESCE(SUM(io_write_operations), 0) AS io_write_operations,
-    COALESCE(MAX(peak_download_bytes_per_second), 0) AS peak_download_bytes_per_second,
-    COALESCE(MAX(peak_upload_bytes_per_second), 0) AS peak_upload_bytes_per_second,
-    COALESCE(MAX(peak_io_bytes_per_second), 0) AS peak_io_bytes_per_second
-FROM daily_process_activity
-WHERE day >= $startDay
-  AND day <= $endDay{BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
-GROUP BY process_name
-ORDER BY process_name COLLATE NOCASE;";
+    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(d.download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(d.upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(d.io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(d.io_write_bytes), 0) AS io_write_bytes,
+    COALESCE(SUM(d.foreground_cpu_total), 0) AS foreground_cpu_total,
+    COALESCE(SUM(d.foreground_working_set_total), 0) AS foreground_working_set_total,
+    COALESCE(SUM(d.foreground_samples), 0) AS foreground_samples,
+    COALESCE(SUM(d.background_cpu_total), 0) AS background_cpu_total,
+    COALESCE(SUM(d.background_working_set_total), 0) AS background_working_set_total,
+    COALESCE(SUM(d.background_samples), 0) AS background_samples,
+    COALESCE(MAX(d.peak_working_set_bytes), 0) AS peak_working_set_bytes,
+    COALESCE(SUM(d.thread_count_total), 0) AS thread_count_total,
+    COALESCE(SUM(d.thread_samples), 0) AS thread_samples,
+    COALESCE(MAX(d.peak_thread_count), 0) AS peak_thread_count,
+    COALESCE(SUM(d.io_read_operations), 0) AS io_read_operations,
+    COALESCE(SUM(d.io_write_operations), 0) AS io_write_operations,
+    COALESCE(MAX(d.peak_download_bytes_per_second), 0) AS peak_download_bytes_per_second,
+    COALESCE(MAX(d.peak_upload_bytes_per_second), 0) AS peak_upload_bytes_per_second,
+    COALESCE(MAX(d.peak_io_bytes_per_second), 0) AS peak_io_bytes_per_second
+FROM daily_process_activity d
+LEFT JOIN latest_paths lp
+    ON lp.process_name = d.process_name
+WHERE d.day >= $startDay
+  AND d.day <= $endDay{BuildIgnoredProcessClause(ignoredProcesses, command, "d.process_name")}
+GROUP BY d.process_name, lp.executable_path
+ORDER BY d.process_name COLLATE NOCASE;";
     }
 
     private static string BuildLoadOverviewApplicationAggregatesSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)
     {
         return $@"
+WITH latest_paths AS (
+    SELECT process_name, executable_path
+    FROM (
+        SELECT
+            process_name,
+            executable_path,
+            ROW_NUMBER() OVER (
+                PARTITION BY process_name
+                ORDER BY day DESC
+            ) AS path_rank
+        FROM daily_process_activity
+        WHERE TRIM(COALESCE(executable_path, '')) <> ''
+    )
+    WHERE path_rank = 1
+)
 SELECT
-    process_name,
-    MAX(executable_path) AS executable_path,
-    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(download_bytes), 0) AS download_bytes,
-    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
-    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
-    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes
-FROM daily_process_activity
-WHERE day >= $startDay
-  AND day <= $endDay{BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
-GROUP BY process_name
-ORDER BY process_name COLLATE NOCASE;";
+    d.process_name,
+    COALESCE(lp.executable_path, '') AS executable_path,
+    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(d.download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(d.upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(d.io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(d.io_write_bytes), 0) AS io_write_bytes
+FROM daily_process_activity d
+LEFT JOIN latest_paths lp
+    ON lp.process_name = d.process_name
+WHERE d.day >= $startDay
+  AND d.day <= $endDay{BuildIgnoredProcessClause(ignoredProcesses, command, "d.process_name")}
+GROUP BY d.process_name, lp.executable_path
+ORDER BY d.process_name COLLATE NOCASE;";
     }
 
     private static string BuildLoadApplicationAggregatesByDaysSql(
@@ -368,35 +402,52 @@ ORDER BY process_name COLLATE NOCASE;";
     {
         var selectedDaysClause = BuildSelectedDaysClause(selectedDays, command);
         return $@"
+WITH latest_paths AS (
+    SELECT process_name, executable_path
+    FROM (
+        SELECT
+            process_name,
+            executable_path,
+            ROW_NUMBER() OVER (
+                PARTITION BY process_name
+                ORDER BY day DESC
+            ) AS path_rank
+        FROM daily_process_activity
+        WHERE TRIM(COALESCE(executable_path, '')) <> ''
+    )
+    WHERE path_rank = 1
+)
 SELECT
-    process_name,
-    MAX(executable_path) AS executable_path,
+    d.process_name,
+    COALESCE(lp.executable_path, '') AS executable_path,
     COUNT(*) AS active_days,
-    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(download_bytes), 0) AS download_bytes,
-    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
-    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
-    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes,
-    COALESCE(SUM(foreground_cpu_total), 0) AS foreground_cpu_total,
-    COALESCE(SUM(foreground_working_set_total), 0) AS foreground_working_set_total,
-    COALESCE(SUM(foreground_samples), 0) AS foreground_samples,
-    COALESCE(SUM(background_cpu_total), 0) AS background_cpu_total,
-    COALESCE(SUM(background_working_set_total), 0) AS background_working_set_total,
-    COALESCE(SUM(background_samples), 0) AS background_samples,
-    COALESCE(MAX(peak_working_set_bytes), 0) AS peak_working_set_bytes,
-    COALESCE(SUM(thread_count_total), 0) AS thread_count_total,
-    COALESCE(SUM(thread_samples), 0) AS thread_samples,
-    COALESCE(MAX(peak_thread_count), 0) AS peak_thread_count,
-    COALESCE(SUM(io_read_operations), 0) AS io_read_operations,
-    COALESCE(SUM(io_write_operations), 0) AS io_write_operations,
-    COALESCE(MAX(peak_download_bytes_per_second), 0) AS peak_download_bytes_per_second,
-    COALESCE(MAX(peak_upload_bytes_per_second), 0) AS peak_upload_bytes_per_second,
-    COALESCE(MAX(peak_io_bytes_per_second), 0) AS peak_io_bytes_per_second
-FROM daily_process_activity
-WHERE day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
-GROUP BY process_name
-ORDER BY process_name COLLATE NOCASE;";
+    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(d.download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(d.upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(d.io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(d.io_write_bytes), 0) AS io_write_bytes,
+    COALESCE(SUM(d.foreground_cpu_total), 0) AS foreground_cpu_total,
+    COALESCE(SUM(d.foreground_working_set_total), 0) AS foreground_working_set_total,
+    COALESCE(SUM(d.foreground_samples), 0) AS foreground_samples,
+    COALESCE(SUM(d.background_cpu_total), 0) AS background_cpu_total,
+    COALESCE(SUM(d.background_working_set_total), 0) AS background_working_set_total,
+    COALESCE(SUM(d.background_samples), 0) AS background_samples,
+    COALESCE(MAX(d.peak_working_set_bytes), 0) AS peak_working_set_bytes,
+    COALESCE(SUM(d.thread_count_total), 0) AS thread_count_total,
+    COALESCE(SUM(d.thread_samples), 0) AS thread_samples,
+    COALESCE(MAX(d.peak_thread_count), 0) AS peak_thread_count,
+    COALESCE(SUM(d.io_read_operations), 0) AS io_read_operations,
+    COALESCE(SUM(d.io_write_operations), 0) AS io_write_operations,
+    COALESCE(MAX(d.peak_download_bytes_per_second), 0) AS peak_download_bytes_per_second,
+    COALESCE(MAX(d.peak_upload_bytes_per_second), 0) AS peak_upload_bytes_per_second,
+    COALESCE(MAX(d.peak_io_bytes_per_second), 0) AS peak_io_bytes_per_second
+FROM daily_process_activity d
+LEFT JOIN latest_paths lp
+    ON lp.process_name = d.process_name
+WHERE d.day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "d.process_name")}
+GROUP BY d.process_name, lp.executable_path
+ORDER BY d.process_name COLLATE NOCASE;";
     }
 
     private static string BuildLoadOverviewApplicationAggregatesByDaysSql(
@@ -406,19 +457,36 @@ ORDER BY process_name COLLATE NOCASE;";
     {
         var selectedDaysClause = BuildSelectedDaysClause(selectedDays, command);
         return $@"
+WITH latest_paths AS (
+    SELECT process_name, executable_path
+    FROM (
+        SELECT
+            process_name,
+            executable_path,
+            ROW_NUMBER() OVER (
+                PARTITION BY process_name
+                ORDER BY day DESC
+            ) AS path_rank
+        FROM daily_process_activity
+        WHERE TRIM(COALESCE(executable_path, '')) <> ''
+    )
+    WHERE path_rank = 1
+)
 SELECT
-    process_name,
-    MAX(executable_path) AS executable_path,
-    COALESCE(SUM(foreground_milliseconds), 0) AS foreground_milliseconds,
-    COALESCE(SUM(background_milliseconds), 0) AS background_milliseconds,
-    COALESCE(SUM(download_bytes), 0) AS download_bytes,
-    COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
-    COALESCE(SUM(io_read_bytes), 0) AS io_read_bytes,
-    COALESCE(SUM(io_write_bytes), 0) AS io_write_bytes
-FROM daily_process_activity
-WHERE day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "process_name")}
-GROUP BY process_name
-ORDER BY process_name COLLATE NOCASE;";
+    d.process_name,
+    COALESCE(lp.executable_path, '') AS executable_path,
+    COALESCE(SUM(d.foreground_milliseconds), 0) AS foreground_milliseconds,
+    COALESCE(SUM(d.background_milliseconds), 0) AS background_milliseconds,
+    COALESCE(SUM(d.download_bytes), 0) AS download_bytes,
+    COALESCE(SUM(d.upload_bytes), 0) AS upload_bytes,
+    COALESCE(SUM(d.io_read_bytes), 0) AS io_read_bytes,
+    COALESCE(SUM(d.io_write_bytes), 0) AS io_write_bytes
+FROM daily_process_activity d
+LEFT JOIN latest_paths lp
+    ON lp.process_name = d.process_name
+WHERE d.day IN ({selectedDaysClause}){BuildIgnoredProcessClause(ignoredProcesses, command, "d.process_name")}
+GROUP BY d.process_name, lp.executable_path
+ORDER BY d.process_name COLLATE NOCASE;";
     }
 
     private static string BuildLoadApplicationDailyRecordsSql(IReadOnlyList<string> ignoredProcesses, SqliteCommand command)

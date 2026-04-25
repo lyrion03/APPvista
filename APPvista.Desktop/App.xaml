@@ -4,9 +4,10 @@
              xmlns:local="clr-namespace:APPvista.Desktop">
     <Application.Resources>
         <Style TargetType="{x:Type FrameworkElement}">
-            <Setter Property="ToolTipService.InitialShowDelay" Value="100" />
-            <Setter Property="ToolTipService.BetweenShowDelay" Value="100" />
-            <Setter Property="ToolTipService.ShowDuration" Value="300" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+            <Setter Property="ToolTipService.BetweenShowDelay" Value="0" />
+            <Setter Property="ToolTipService.ShowDuration" Value="5000" />
+            <Setter Property="ToolTipService.Placement" Value="Mouse" />
         </Style>
     </Application.Resources>
 </Application>

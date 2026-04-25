@@ -24,6 +24,7 @@ public sealed class HistoryComparisonViewModel : ObservableObject
 
     private readonly ApplicationIconCache _applicationIconCache;
     private readonly IReadOnlyDictionary<string, string> _applicationAliases;
+    private readonly Action<string, string> _openHistoryDetailsAction;
     private readonly List<HistoryComparisonMetric> _metricOrder = [];
     private static readonly string[] ParallelChartPalette =
     [
@@ -59,12 +60,14 @@ public sealed class HistoryComparisonViewModel : ObservableObject
     public HistoryComparisonViewModel(
         ApplicationIconCache applicationIconCache,
         IReadOnlyDictionary<string, string> applicationAliases,
+        Action<string, string> openHistoryDetailsAction,
         IReadOnlyList<HistoryApplicationAggregate> applicationAggregates,
         string windowTitle,
         string rangeDisplay)
     {
         _applicationIconCache = applicationIconCache;
         _applicationAliases = applicationAliases;
+        _openHistoryDetailsAction = openHistoryDetailsAction;
         AvailableApplications = new ObservableCollection<HistoryComparisonSelectableApplicationViewModel>();
         VisibleMetrics = new ObservableCollection<HistoryComparisonMetricOptionViewModel>();
         ComparisonRows = new ObservableCollection<HistoryComparisonApplicationRowViewModel>();
@@ -265,7 +268,9 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             aggregate,
             displayName,
             aggregate.ProcessName,
-            string.IsNullOrWhiteSpace(aggregate.ExecutablePath) ? null : _applicationIconCache.GetIconPath(aggregate.ExecutablePath));
+            aggregate.ExecutablePath,
+            string.IsNullOrWhiteSpace(aggregate.ExecutablePath) ? null : _applicationIconCache.GetIconPathImmediate(aggregate.ExecutablePath),
+            new RelayCommand(() => _openHistoryDetailsAction(aggregate.ProcessName, aggregate.ExecutablePath)));
     }
 
     private void OnApplicationSelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1019,20 +1024,26 @@ public sealed class HistoryComparisonViewModel : ObservableObject
             HistoryApplicationAggregate aggregate,
             string displayName,
             string processName,
-            string? iconSourcePath)
+            string executablePath,
+            string? iconSourcePath,
+            ICommand openHistoryDetailsCommand)
         {
             Aggregate = aggregate;
             DisplayName = displayName;
             ProcessName = processName;
+            ExecutablePath = executablePath;
             IconSourcePath = iconSourcePath;
+            OpenHistoryDetailsCommand = openHistoryDetailsCommand;
             SortKey = displayName;
         }
 
         public HistoryApplicationAggregate Aggregate { get; }
         public string DisplayName { get; }
         public string ProcessName { get; }
+        public string ExecutablePath { get; }
         public string SortKey { get; }
         public string? IconSourcePath { get; }
+        public ICommand OpenHistoryDetailsCommand { get; }
 
         public bool IsSelected
         {

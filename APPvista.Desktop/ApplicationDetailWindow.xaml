@@ -1087,6 +1087,7 @@
                                 <Button x:Name="HistoryCustomDimensionButton"
                                         Margin="0,10,0,0"
                                         Padding="12,10"
+                                        ToolTip="可在日历上拖动以扩选/反选日期"
                                         Command="{Binding SetHistoryCustomDimensionCommand}"
                                         Content="自选">
                                     <Button.Style>

@@ -134,6 +134,22 @@ public partial class HistoryComparisonWindow : Window
         e.Handled = true;
     }
 
+    private void ApplicationSelectorToggle_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ToggleButton toggleButton ||
+            toggleButton.DataContext is not HistoryComparisonViewModel.HistoryComparisonSelectableApplicationViewModel application)
+        {
+            return;
+        }
+
+        if (application.OpenHistoryDetailsCommand.CanExecute(null))
+        {
+            application.OpenHistoryDetailsCommand.Execute(null);
+        }
+
+        e.Handled = true;
+    }
+
     protected override void OnPreviewMouseMove(WpfMouseEventArgs e)
     {
         base.OnPreviewMouseMove(e);

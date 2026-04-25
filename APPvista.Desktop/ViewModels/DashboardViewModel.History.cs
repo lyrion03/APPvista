@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -50,9 +51,15 @@ public sealed partial class DashboardViewModel
     private (HistoryDimension TargetDimension, DateOnly RangeStart, DateOnly RangeEnd)? _pendingHistorySelectionRange;
     private int _historyTopN = 3;
     private IReadOnlyList<HistoryDailyRecord> _historyCalendarRecords = [];
+    private IReadOnlyList<HistoryDailyRecord> _historyLoadedDailyRecords = [];
+    private IReadOnlyList<HistoryOverviewApplicationAggregate> _historyLoadedApplicationRecords = [];
+    private string? _historyLoadedSelectionKey;
     private ImageSource? _historyTrafficPieChartSource;
     private ImageSource? _historyIoPieChartSource;
     private ImageSource? _historyForegroundPieChartSource;
+    private string? _historyTrafficPieChartSignature;
+    private string? _historyIoPieChartSignature;
+    private string? _historyForegroundPieChartSignature;
     private int _historyAnalysisLoadVersion;
 
     public ObservableCollection<HistoryCalendarDayViewModel> HistoryCalendarDays { get; }
@@ -273,6 +280,7 @@ public sealed partial class DashboardViewModel
         var viewModel = new HistoryComparisonViewModel(
             _applicationIconCache,
             new Dictionary<string, string>(_applicationAliases, StringComparer.OrdinalIgnoreCase),
+            OpenHistoryRankingApplication,
             applicationRecords,
             windowTitle,
             rangeDisplay);
@@ -451,6 +459,7 @@ public sealed partial class DashboardViewModel
         var selectedDate = _historySelectedDate;
         var displayedMonth = _historyDisplayedMonth;
         var selectedCustomDays = selectedDimension == HistoryDimension.Custom ? GetCustomSelectedDays() : Array.Empty<DateOnly>();
+        var selectionKey = BuildHistorySelectionKey(selectedDimension, selectedDate, displayedMonth, selectedCustomDays);
         var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
 
         var loaded = await Task.Run(() =>
@@ -472,7 +481,10 @@ public sealed partial class DashboardViewModel
             return;
         }
 
-        var dailyRecords = MergeLiveTodayRecord(loaded.DailyRecords);
+        _historyLoadedDailyRecords = loaded.DailyRecords;
+        _historyLoadedApplicationRecords = loaded.ApplicationRecords;
+        _historyLoadedSelectionKey = selectionKey;
+        var dailyRecords = MergeLiveTodayRecord(_historyLoadedDailyRecords);
         _historyCalendarRecords = dailyRecords;
         if (_pendingHistorySelectionRange is { } pendingRange && selectedDimension == pendingRange.TargetDimension)
         {
@@ -497,12 +509,42 @@ public sealed partial class DashboardViewModel
             _pendingHistorySelectionRange = null;
         }
 
+        ApplyHistoryAnalysisFromLoadedData(selectedDimension, selectedDate, displayedMonth, selectedCustomDays);
+    }
+
+    private void RefreshHistoryAnalysisFromCurrentSnapshot()
+    {
+        var selectedCustomDays = _selectedHistoryDimension == HistoryDimension.Custom ? GetCustomSelectedDays() : Array.Empty<DateOnly>();
+        if (!HistorySelectionIncludesToday(_selectedHistoryDimension, _historySelectedDate, _historyDisplayedMonth, selectedCustomDays))
+        {
+            return;
+        }
+
+        var selectionKey = BuildHistorySelectionKey(_selectedHistoryDimension, _historySelectedDate, _historyDisplayedMonth, selectedCustomDays);
+        if (!string.Equals(_historyLoadedSelectionKey, selectionKey, StringComparison.Ordinal))
+        {
+            LoadHistoryAnalysis();
+            return;
+        }
+
+        ApplyHistoryAnalysisFromLoadedData(_selectedHistoryDimension, _historySelectedDate, _historyDisplayedMonth, selectedCustomDays);
+    }
+
+    private void ApplyHistoryAnalysisFromLoadedData(
+        HistoryDimension selectedDimension,
+        DateOnly selectedDate,
+        DateOnly displayedMonth,
+        IReadOnlyList<DateOnly> selectedCustomDays)
+    {
+        var dailyRecords = MergeLiveTodayRecord(_historyLoadedDailyRecords);
+        _historyCalendarRecords = dailyRecords;
         RefreshHistoryCalendar();
         var selectedRecords = SelectHistoryRecords(dailyRecords, selectedDimension, selectedDate, displayedMonth, selectedCustomDays);
+        var (rangeStart, rangeEnd) = ResolveHistoryRange(selectedDimension, selectedDate, displayedMonth);
         var applicationRecords = selectedDimension == HistoryDimension.Custom
-            ? MergeLiveTodayOverviewApplicationAggregates(loaded.ApplicationRecords, selectedCustomDays)
+            ? MergeLiveTodayOverviewApplicationAggregates(_historyLoadedApplicationRecords, selectedCustomDays)
             : MergeLiveTodayOverviewApplicationAggregates(
-                loaded.ApplicationRecords,
+                _historyLoadedApplicationRecords,
                 rangeStart,
                 rangeEnd);
 
@@ -515,6 +557,41 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(HistoryDimensionTitle));
         RaisePropertyChanged(nameof(HistoryDimensionHeadline));
         RaiseHistorySummaryChanged();
+    }
+
+    private static string BuildHistorySelectionKey(
+        HistoryDimension dimension,
+        DateOnly selectedDate,
+        DateOnly displayedMonth,
+        IReadOnlyList<DateOnly> selectedCustomDays)
+    {
+        return dimension switch
+        {
+            HistoryDimension.Week => $"week:{selectedDate:yyyy-MM-dd}",
+            HistoryDimension.Month => $"month:{displayedMonth:yyyy-MM-dd}",
+            HistoryDimension.Custom => $"custom:{string.Join(",", selectedCustomDays.Select(static day => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))}",
+            _ => $"day:{selectedDate:yyyy-MM-dd}"
+        };
+    }
+
+    private static bool HistorySelectionIncludesToday(
+        HistoryDimension dimension,
+        DateOnly selectedDate,
+        DateOnly displayedMonth,
+        IReadOnlyList<DateOnly> selectedCustomDays)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return dimension switch
+        {
+            HistoryDimension.Week =>
+                today >= GetWeekStart(selectedDate) &&
+                today <= GetWeekStart(selectedDate).AddDays(6),
+            HistoryDimension.Month =>
+                today >= displayedMonth &&
+                today <= displayedMonth.AddMonths(1).AddDays(-1),
+            HistoryDimension.Custom => selectedCustomDays.Contains(today),
+            _ => selectedDate == today
+        };
     }
 
     private IReadOnlyList<HistoryDailyRecord> MergeLiveTodayRecord(IReadOnlyList<HistoryDailyRecord> dailyRecords)
@@ -562,8 +639,6 @@ public sealed partial class DashboardViewModel
 
     private void RefreshHistoryCalendar()
     {
-        HistoryCalendarDays.Clear();
-
         var firstOfMonth = _historyDisplayedMonth;
         var firstVisible = GetWeekStart(firstOfMonth);
         var selectedWeekStart = GetWeekStart(_historySelectedDate);
@@ -572,6 +647,8 @@ public sealed partial class DashboardViewModel
         var daysWithData = _historyCalendarRecords
             .Select(record => record.Day)
             .ToHashSet();
+
+        EnsureHistoryCalendarDaySlots();
 
         for (var i = 0; i < 42; i++)
         {
@@ -593,15 +670,22 @@ public sealed partial class DashboardViewModel
                                date.Year == _historyDisplayedMonth.Year &&
                                daysWithData.Contains(date);
 
-            HistoryCalendarDays.Add(new HistoryCalendarDayViewModel(
+            HistoryCalendarDays[i].Update(
                 date,
                 isInDisplayedMonth: date.Month == _historyDisplayedMonth.Month && date.Year == _historyDisplayedMonth.Year,
                 hasData: daysWithData.Contains(date),
                 isSelected: isSelected,
                 isRangeStart: isRangeStart,
                 isRangeEnd: isRangeEnd,
-                isSelectable: _selectedHistoryDimension != HistoryDimension.Month && isSelectable,
-                onSelect: OnHistoryCalendarDateInvoked));
+                isSelectable: _selectedHistoryDimension != HistoryDimension.Month && isSelectable);
+        }
+    }
+
+    private void EnsureHistoryCalendarDaySlots()
+    {
+        while (HistoryCalendarDays.Count < 42)
+        {
+            HistoryCalendarDays.Add(new HistoryCalendarDayViewModel(OnHistoryCalendarDateInvoked));
         }
     }
 
@@ -817,18 +901,55 @@ public sealed partial class DashboardViewModel
                 .ToList(),
             "暂无前台时长数据");
 
-        _historyTrafficPieChartSource = BuildHistoryPieChartImage(
-            trafficRecords,
-            static record => record.TotalTrafficBytes,
-            static record => FormatBytes(record.TotalTrafficBytes));
-        _historyIoPieChartSource = BuildHistoryPieChartImage(
-            ioRecords,
-            static record => record.TotalIoBytes,
-            static record => FormatBytes(record.TotalIoBytes));
-        _historyForegroundPieChartSource = BuildHistoryPieChartImage(
-            foregroundRecords,
-            static record => record.ForegroundMilliseconds,
-            static record => FormatDuration(record.ForegroundMilliseconds));
+        var trafficSignature = BuildHistoryPieChartSignature(trafficRecords, static record => record.TotalTrafficBytes);
+        if (!string.Equals(_historyTrafficPieChartSignature, trafficSignature, StringComparison.Ordinal))
+        {
+            _historyTrafficPieChartSource = BuildHistoryPieChartImage(
+                trafficRecords,
+                static record => record.TotalTrafficBytes,
+                static record => FormatBytes(record.TotalTrafficBytes));
+            _historyTrafficPieChartSignature = trafficSignature;
+        }
+
+        var ioSignature = BuildHistoryPieChartSignature(ioRecords, static record => record.TotalIoBytes);
+        if (!string.Equals(_historyIoPieChartSignature, ioSignature, StringComparison.Ordinal))
+        {
+            _historyIoPieChartSource = BuildHistoryPieChartImage(
+                ioRecords,
+                static record => record.TotalIoBytes,
+                static record => FormatBytes(record.TotalIoBytes));
+            _historyIoPieChartSignature = ioSignature;
+        }
+
+        var foregroundSignature = BuildHistoryPieChartSignature(foregroundRecords, static record => record.ForegroundMilliseconds);
+        if (!string.Equals(_historyForegroundPieChartSignature, foregroundSignature, StringComparison.Ordinal))
+        {
+            _historyForegroundPieChartSource = BuildHistoryPieChartImage(
+                foregroundRecords,
+                static record => record.ForegroundMilliseconds,
+                static record => FormatDuration(record.ForegroundMilliseconds));
+            _historyForegroundPieChartSignature = foregroundSignature;
+        }
+    }
+
+    private string BuildHistoryPieChartSignature(
+        IReadOnlyList<HistoryOverviewApplicationAggregate> orderedRecords,
+        Func<HistoryOverviewApplicationAggregate, long> valueSelector)
+    {
+        var builder = new StringBuilder();
+        builder.Append(_historyTopN.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var record in orderedRecords)
+        {
+            builder.Append('|');
+            builder.Append(record.ProcessName);
+            builder.Append('>');
+            builder.Append(record.ExecutablePath);
+            builder.Append(':');
+            builder.Append(Math.Max(0L, valueSelector(record)).ToString(CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
     }
 
     private HistoryRankingItemViewModel CreateHistoryRankingItem(int rank, HistoryOverviewApplicationAggregate record, string metricDisplay)
@@ -837,7 +958,7 @@ public sealed partial class DashboardViewModel
             rank.ToString(CultureInfo.InvariantCulture),
             BuildHistoryApplicationDisplayName(record.ProcessName, record.ExecutablePath),
             metricDisplay,
-            string.IsNullOrWhiteSpace(record.ExecutablePath) ? null : _applicationIconCache.GetIconPath(record.ExecutablePath),
+            string.IsNullOrWhiteSpace(record.ExecutablePath) ? null : _applicationIconCache.GetIconPathImmediate(record.ExecutablePath),
             record.ProcessName,
             record.ExecutablePath,
             new RelayCommand(() => OpenHistoryRankingApplication(record.ProcessName, record.ExecutablePath)));
@@ -884,8 +1005,7 @@ public sealed partial class DashboardViewModel
                 left.MetricDisplay == right.MetricDisplay &&
                 left.IconSourcePath == right.IconSourcePath &&
                 left.ProcessName == right.ProcessName &&
-                left.ExecutablePath == right.ExecutablePath &&
-                Equals(left.OpenDetailsCommand, right.OpenDetailsCommand));
+                left.ExecutablePath == right.ExecutablePath);
     }
 
     private void OpenHistoryRankingApplication(string processName, string executablePath)
@@ -943,7 +1063,7 @@ public sealed partial class DashboardViewModel
         }
         else
         {
-            var iconSourcePath = string.IsNullOrWhiteSpace(executablePath) ? null : _applicationIconCache.GetIconPath(executablePath);
+            var iconSourcePath = string.IsNullOrWhiteSpace(executablePath) ? null : _applicationIconCache.GetIconPathImmediate(executablePath);
             detailWindow = new ApplicationDetailWindow(
                 new ApplicationDetailViewModel(processName, displayName, executablePath, iconSourcePath, _detailDisplayPreferences, _databasePath));
         }
@@ -1558,17 +1678,111 @@ public sealed partial class DashboardViewModel
 
 internal readonly record struct HistoryPieSlice(string Label, double Value, string MetricDisplay, System.Windows.Media.Brush Brush);
 
-public sealed class HistoryCalendarDayViewModel
+public sealed class HistoryCalendarDayViewModel : ObservableObject
 {
-    public HistoryCalendarDayViewModel(
+    private readonly RelayCommand _selectCommand;
+    private readonly Action<DateOnly> _onSelect;
+    private DateOnly _date;
+    private string _dayNumber = string.Empty;
+    private bool _isInDisplayedMonth;
+    private bool _hasData;
+    private bool _isSelected;
+    private bool _isRangeStart;
+    private bool _isRangeEnd;
+    private bool _isSingleSelection;
+    private bool _isRangeStartOnly;
+    private bool _isRangeEndOnly;
+    private bool _isRangeMiddle;
+    private bool _isSelectable;
+
+    public HistoryCalendarDayViewModel(Action<DateOnly> onSelect)
+    {
+        _onSelect = onSelect;
+        _selectCommand = new RelayCommand(() => _onSelect(Date), () => IsSelectable);
+    }
+
+    public DateOnly Date
+    {
+        get => _date;
+        private set => SetProperty(ref _date, value);
+    }
+
+    public string DayNumber
+    {
+        get => _dayNumber;
+        private set => SetProperty(ref _dayNumber, value);
+    }
+
+    public bool IsInDisplayedMonth
+    {
+        get => _isInDisplayedMonth;
+        private set => SetProperty(ref _isInDisplayedMonth, value);
+    }
+
+    public bool HasData
+    {
+        get => _hasData;
+        private set => SetProperty(ref _hasData, value);
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        private set => SetProperty(ref _isSelected, value);
+    }
+
+    public bool IsRangeStart
+    {
+        get => _isRangeStart;
+        private set => SetProperty(ref _isRangeStart, value);
+    }
+
+    public bool IsRangeEnd
+    {
+        get => _isRangeEnd;
+        private set => SetProperty(ref _isRangeEnd, value);
+    }
+
+    public bool IsSingleSelection
+    {
+        get => _isSingleSelection;
+        private set => SetProperty(ref _isSingleSelection, value);
+    }
+
+    public bool IsRangeStartOnly
+    {
+        get => _isRangeStartOnly;
+        private set => SetProperty(ref _isRangeStartOnly, value);
+    }
+
+    public bool IsRangeEndOnly
+    {
+        get => _isRangeEndOnly;
+        private set => SetProperty(ref _isRangeEndOnly, value);
+    }
+
+    public bool IsRangeMiddle
+    {
+        get => _isRangeMiddle;
+        private set => SetProperty(ref _isRangeMiddle, value);
+    }
+
+    public bool IsSelectable
+    {
+        get => _isSelectable;
+        private set => SetProperty(ref _isSelectable, value);
+    }
+
+    public ICommand SelectCommand => _selectCommand;
+
+    public void Update(
         DateOnly date,
         bool isInDisplayedMonth,
         bool hasData,
         bool isSelected,
         bool isRangeStart,
         bool isRangeEnd,
-        bool isSelectable,
-        Action<DateOnly> onSelect)
+        bool isSelectable)
     {
         Date = date;
         DayNumber = date.Day.ToString(CultureInfo.InvariantCulture);
@@ -1582,22 +1796,8 @@ public sealed class HistoryCalendarDayViewModel
         IsRangeEndOnly = isRangeEnd && !IsSingleSelection;
         IsRangeMiddle = isSelected && !isRangeStart && !isRangeEnd;
         IsSelectable = isSelectable;
-        SelectCommand = new RelayCommand(() => onSelect(date), () => isSelectable);
+        _selectCommand.NotifyCanExecuteChanged();
     }
-
-    public DateOnly Date { get; }
-    public string DayNumber { get; }
-    public bool IsInDisplayedMonth { get; }
-    public bool HasData { get; }
-    public bool IsSelected { get; }
-    public bool IsRangeStart { get; }
-    public bool IsRangeEnd { get; }
-    public bool IsSingleSelection { get; }
-    public bool IsRangeStartOnly { get; }
-    public bool IsRangeEndOnly { get; }
-    public bool IsRangeMiddle { get; }
-    public bool IsSelectable { get; }
-    public ICommand SelectCommand { get; }
 }
 
 public sealed class HistoryRankingItemViewModel

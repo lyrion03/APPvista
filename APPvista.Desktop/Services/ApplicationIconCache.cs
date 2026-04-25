@@ -54,6 +54,31 @@ public sealed class ApplicationIconCache
         return string.Empty;
     }
 
+    public string GetIconPathImmediate(string executablePath)
+    {
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+        {
+            return string.Empty;
+        }
+
+        var normalizedPath = Path.GetFullPath(executablePath);
+        if (_cache.TryGetValue(normalizedPath, out var cachedPath))
+        {
+            return cachedPath ?? string.Empty;
+        }
+
+        var cacheFilePath = Path.Combine(_cacheDirectory, ComputeCacheFileName(normalizedPath));
+        if (File.Exists(cacheFilePath))
+        {
+            _cache[normalizedPath] = cacheFilePath;
+            return cacheFilePath;
+        }
+
+        var createdPath = CreateIconCacheEntry(normalizedPath);
+        _cache[normalizedPath] = createdPath;
+        return createdPath ?? string.Empty;
+    }
+
     private string? CreateIconCacheEntry(string executablePath)
     {
         try

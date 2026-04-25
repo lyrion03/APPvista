@@ -26,7 +26,7 @@ public partial class MainWindow : Window
     private bool _isDraggingHistoryCustomSelection;
     private bool _historyCustomSelectionTarget;
     private bool _isHistoryPageLoaded;
-    private bool _hasAppliedInitialTopAlignment;
+    private bool _hasAppliedInitialWindowAlignment;
     private ImageSource? _pendingHeaderSnapshot;
     private double _pendingHeaderSnapshotHeight;
 
@@ -70,7 +70,7 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        ApplyInitialTopAlignment();
+        ApplyInitialWindowAlignment();
 
         if (DataContext is ViewModels.DashboardViewModel viewModel)
         {
@@ -278,15 +278,16 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void ApplyInitialTopAlignment()
+    private void ApplyInitialWindowAlignment()
     {
-        if (_hasAppliedInitialTopAlignment)
+        if (_hasAppliedInitialWindowAlignment)
         {
             return;
         }
 
-        _hasAppliedInitialTopAlignment = true;
+        _hasAppliedInitialWindowAlignment = true;
         var screen = Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        Left = screen.WorkingArea.Left;
         Top = screen.WorkingArea.Top;
     }
 

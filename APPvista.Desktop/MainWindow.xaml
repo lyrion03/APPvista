@@ -426,6 +426,16 @@
                                               IsCheckable="True"
                                               IsChecked="{Binding IsWindowedOnlyRecordingMode, Mode=OneWay}" />
                                 </MenuItem>
+                                <MenuItem Header="卡片排序">
+                                    <MenuItem Header="不随刷新重排"
+                                              Command="{Binding SetCardReorderOffCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsCardReorderOffMode, Mode=OneWay}" />
+                                    <MenuItem Header="随刷新重排"
+                                              Command="{Binding SetCardReorderOnCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsCardReorderOnMode, Mode=OneWay}" />
+                                </MenuItem>
                             </MenuItem>
                         </Menu>
                         <Border x:Name="DashboardHistoryHeaderContent"

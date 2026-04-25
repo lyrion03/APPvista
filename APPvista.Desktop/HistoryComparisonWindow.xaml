@@ -186,58 +186,58 @@
                                            FontSize="14"
                                            Text="{Binding RangeDisplay}" />
                             </StackPanel>
-                            <Menu Margin="0,8,0,0"
-                                  Style="{StaticResource OverviewMenuStyle}">
-                                <Menu.Resources>
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
-                                    <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
-                                </Menu.Resources>
-                                <MenuItem Header="{Binding ApplicationSortMenuDisplay}"
-                                          Style="{StaticResource OverviewMenuItemStyle}">
-                                    <MenuItem Header="名称"
-                                              Command="{Binding SetSortByNameCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByNameMode, Mode=OneWay}" />
-                                    <MenuItem Header="前台时长"
-                                              Command="{Binding SetSortByForegroundDurationCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByForegroundDurationMode, Mode=OneWay}" />
-                                    <MenuItem Header="前台占比"
-                                              Command="{Binding SetSortByForegroundRatioCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByForegroundRatioMode, Mode=OneWay}" />
-                                    <MenuItem Header="平均工作集"
-                                              Command="{Binding SetSortByAverageWorkingSetCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByAverageWorkingSetMode, Mode=OneWay}" />
-                                    <MenuItem Header="平均cpu"
-                                              Command="{Binding SetSortByAverageCpuCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByAverageCpuMode, Mode=OneWay}" />
-                                    <MenuItem Header="总流量"
-                                              Command="{Binding SetSortByTotalTrafficCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByTotalTrafficMode, Mode=OneWay}" />
-                                    <MenuItem Header="I/O总量"
-                                              Command="{Binding SetSortByTotalIoCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByTotalIoMode, Mode=OneWay}" />
-                                    <MenuItem Header="平均IOPS"
-                                              Command="{Binding SetSortByAverageIopsCommand}"
-                                              IsCheckable="True"
-                                              IsChecked="{Binding IsSortByAverageIopsMode, Mode=OneWay}" />
-                                </MenuItem>
-                            </Menu>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1"
                                     VerticalAlignment="Top"
                                     HorizontalAlignment="Right">
                             <StackPanel Orientation="Horizontal">
+                                <Menu Margin="0,0,26,0"
+                                      Style="{StaticResource OverviewMenuStyle}">
+                                    <Menu.Resources>
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                                        <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                                    </Menu.Resources>
+                                    <MenuItem Header="{Binding ApplicationSortMenuDisplay}"
+                                              Style="{StaticResource OverviewMenuItemStyle}">
+                                        <MenuItem Header="名称"
+                                                  Command="{Binding SetSortByNameCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByNameMode, Mode=OneWay}" />
+                                        <MenuItem Header="前台时长"
+                                                  Command="{Binding SetSortByForegroundDurationCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByForegroundDurationMode, Mode=OneWay}" />
+                                        <MenuItem Header="前台占比"
+                                                  Command="{Binding SetSortByForegroundRatioCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByForegroundRatioMode, Mode=OneWay}" />
+                                        <MenuItem Header="平均工作集"
+                                                  Command="{Binding SetSortByAverageWorkingSetCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByAverageWorkingSetMode, Mode=OneWay}" />
+                                        <MenuItem Header="平均cpu"
+                                                  Command="{Binding SetSortByAverageCpuCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByAverageCpuMode, Mode=OneWay}" />
+                                        <MenuItem Header="总流量"
+                                                  Command="{Binding SetSortByTotalTrafficCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByTotalTrafficMode, Mode=OneWay}" />
+                                        <MenuItem Header="I/O总量"
+                                                  Command="{Binding SetSortByTotalIoCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByTotalIoMode, Mode=OneWay}" />
+                                        <MenuItem Header="平均IOPS"
+                                                  Command="{Binding SetSortByAverageIopsCommand}"
+                                                  IsCheckable="True"
+                                                  IsChecked="{Binding IsSortByAverageIopsMode, Mode=OneWay}" />
+                                    </MenuItem>
+                                </Menu>
                                 <Button Padding="12,6"
                                         Margin="0,0,10,0"
                                         Background="#21483D"
@@ -317,6 +317,8 @@
                                                   Height="116"
                                                   Style="{StaticResource SelectorToggleStyle}"
                                                   PreviewMouseLeftButtonDown="ApplicationSelectorToggle_OnPreviewMouseLeftButtonDown"
+                                                  PreviewMouseRightButtonDown="ApplicationSelectorToggle_OnPreviewMouseRightButtonDown"
+                                                  ToolTip="左键拖动以扩选/反选&#10;右键点击进入历史信息页"
                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}">
                                         <StackPanel>
                                             <Border Width="40"
