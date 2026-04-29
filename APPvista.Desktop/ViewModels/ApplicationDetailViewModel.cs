@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -40,6 +41,31 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private const int HistoryChartVisibleBars = 7;
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(1);
     private const int HistoryChartDays = 30;
+    private const uint ShellExecuteInvokeIdListMask = 0x0000000C;
+    private const int ShellShowNormal = 1;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ShellExecuteInfo
+    {
+        public int cbSize;
+        public uint fMask;
+        public nint hwnd;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpVerb;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpFile;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpParameters;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpDirectory;
+        public int nShow;
+        public nint hInstApp;
+        public nint lpIDList;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpClass;
+        public nint hkeyClass;
+        public uint dwHotKey;
+        public nint hIconOrMonitor;
+        public nint hProcess;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ShellExecuteEx(ref ShellExecuteInfo lpExecInfo);
 
     private readonly ApplicationCardViewModel _application;
     private readonly DetailDisplayPreferences _preferences;
@@ -80,6 +106,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private bool _isDisposed;
     private readonly bool _isHistoryOnlyMode;
     private bool _hasLoadedHistoryDatabaseRecords;
+    private readonly RelayCommand _openOnlineSearchCommand;
+    private readonly RelayCommand _openExecutablePropertiesCommand;
 
     public ApplicationDetailViewModel(ApplicationCardViewModel application, DetailDisplayPreferences preferences, string databasePath)
         : this(application, preferences, databasePath, isHistoryOnlyMode: false, initialDataMode: DetailDataMode.Current)
@@ -178,6 +206,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         ToggleHistoryDatePickerCommand = new RelayCommand(ToggleHistoryDatePicker);
         ShowPreviousHistoryMonthCommand = new RelayCommand(ShowPreviousHistoryMonth);
         ShowNextHistoryMonthCommand = new RelayCommand(ShowNextHistoryMonth);
+        _openOnlineSearchCommand = new RelayCommand(OpenOnlineSearch, CanOpenOnlineSearch);
+        _openExecutablePropertiesCommand = new RelayCommand(OpenExecutableProperties, CanOpenExecutableProperties);
 
         LoadHistorySummary();
         RefreshHistoryCalendar();
@@ -462,6 +492,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public ICommand ToggleHistoryDatePickerCommand { get; }
     public ICommand ShowPreviousHistoryMonthCommand { get; }
     public ICommand ShowNextHistoryMonthCommand { get; }
+    public ICommand OpenOnlineSearchCommand => _openOnlineSearchCommand;
+    public ICommand OpenExecutablePropertiesCommand => _openExecutablePropertiesCommand;
 
     public void Dispose()
     {
@@ -1059,6 +1091,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(ProcessCountDisplay));
         RaisePropertyChanged(nameof(ProcessIdDisplay));
         RaisePropertyChanged(nameof(ExecutablePathDisplay));
+        NotifyHeaderActionCommandStateChanged();
     }
 
     private void RaiseLiveApplicationProperties()
@@ -1205,6 +1238,112 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HistoryChartXAxisStartLabel));
         RaisePropertyChanged(nameof(HistoryChartXAxisEndLabel));
         RaisePropertyChanged(nameof(HistoryChartDisplayWidth));
+        NotifyHeaderActionCommandStateChanged();
+    }
+
+    private void NotifyHeaderActionCommandStateChanged()
+    {
+        _openOnlineSearchCommand.NotifyCanExecuteChanged();
+        _openExecutablePropertiesCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanOpenOnlineSearch()
+    {
+        return !string.IsNullOrWhiteSpace(BuildOnlineSearchKeyword());
+    }
+
+    private void OpenOnlineSearch()
+    {
+        var keyword = BuildOnlineSearchKeyword();
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = $"https://www.bing.com/search?q={Uri.EscapeDataString(keyword)}",
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
+    }
+
+    private string BuildOnlineSearchKeyword()
+    {
+        var displayName = _application.DisplayName?.Trim() ?? string.Empty;
+        var originalName = _application.OriginalName?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return originalName;
+        }
+
+        if (string.IsNullOrWhiteSpace(originalName) || string.Equals(displayName, originalName, StringComparison.OrdinalIgnoreCase))
+        {
+            return displayName;
+        }
+
+        return $"{displayName} {originalName}";
+    }
+
+    private bool CanOpenExecutableProperties()
+    {
+        return TryResolveExecutablePathForActions(out _);
+    }
+
+    private void OpenExecutableProperties()
+    {
+        if (!TryResolveExecutablePathForActions(out var executablePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var executeInfo = new ShellExecuteInfo
+            {
+                cbSize = Marshal.SizeOf<ShellExecuteInfo>(),
+                fMask = ShellExecuteInvokeIdListMask,
+                lpVerb = "properties",
+                lpFile = executablePath,
+                nShow = ShellShowNormal
+            };
+
+            ShellExecuteEx(ref executeInfo);
+        }
+        catch
+        {
+        }
+    }
+
+    private bool TryResolveExecutablePathForActions(out string executablePath)
+    {
+        foreach (var candidate in new[]
+                 {
+                     Snapshot.ExecutablePath,
+                     _historySummary.ExecutablePathDisplay
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(candidate) || candidate == "-")
+            {
+                continue;
+            }
+
+            var normalizedPath = Environment.ExpandEnvironmentVariables(candidate.Trim());
+            if (File.Exists(normalizedPath))
+            {
+                executablePath = normalizedPath;
+                return true;
+            }
+        }
+
+        executablePath = string.Empty;
+        return false;
     }
 
     public void ActivateHistoryMode()
@@ -1548,7 +1687,6 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             : records.Length <= HistoryChartVisibleBars ? 0.58f : 0.5f;
         var maxWidth = dimension == HistoryAnalysisDimension.Day ? 58f : 52f;
         var groupWidth = Math.Max(4f, Math.Min(maxWidth, slotWidth * widthFactor));
-        var showLabels = splitMode ? records.Length <= 10 : records.Length <= 14;
 
         for (var i = 0; i < records.Length; i++)
         {
@@ -1566,34 +1704,31 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                 DrawHistoryBar(canvas, primaryPaint, left, barWidth, primary[i], yAxisMax, plotRect);
                 DrawHistoryBar(canvas, secondaryPaint, left + barWidth + gap, barWidth, secondary[i], yAxisMax, plotRect);
 
-                if (showLabels)
-                {
-                    var primaryLabelRect = DrawHistoryBarLabel(
-                        canvas,
-                        labelBackgroundPaint,
-                        labelBorderPaint,
-                        splitLabelTextPaint,
-                        splitLabelFont,
-                        left,
-                        barWidth,
-                        primary[i],
-                        yAxisMax,
-                        plotRect,
-                        compactMode: true);
-                    DrawHistoryBarLabel(
-                        canvas,
-                        labelBackgroundPaint,
-                        labelBorderPaint,
-                        splitLabelTextPaint,
-                        splitLabelFont,
-                        left + barWidth + gap,
-                        barWidth,
-                        secondary[i],
-                        yAxisMax,
-                        plotRect,
-                        compactMode: true,
-                        avoidRect: primaryLabelRect);
-                }
+                var primaryLabelRect = DrawHistoryBarLabel(
+                    canvas,
+                    labelBackgroundPaint,
+                    labelBorderPaint,
+                    splitLabelTextPaint,
+                    splitLabelFont,
+                    left,
+                    barWidth,
+                    primary[i],
+                    yAxisMax,
+                    plotRect,
+                    compactMode: true);
+                DrawHistoryBarLabel(
+                    canvas,
+                    labelBackgroundPaint,
+                    labelBorderPaint,
+                    splitLabelTextPaint,
+                    splitLabelFont,
+                    left + barWidth + gap,
+                    barWidth,
+                    secondary[i],
+                    yAxisMax,
+                    plotRect,
+                    compactMode: true,
+                    avoidRect: primaryLabelRect);
 
                 DrawHistoryDateLabel(canvas, dateTextPaint, dateFont, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
             }
@@ -1602,10 +1737,17 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
                 totalPaint.Color = GetHistoryBarColor(isNetwork ? "#2A6FBB" : "#176B5A", weekTint);
                 DrawHistoryBar(canvas, totalPaint, left, groupWidth, total[i], yAxisMax, plotRect);
 
-                if (showLabels)
-                {
-                    DrawHistoryBarLabel(canvas, labelBackgroundPaint, labelBorderPaint, labelTextPaint, labelFont, left, groupWidth, total[i], yAxisMax, plotRect);
-                }
+                DrawHistoryBarLabel(
+                    canvas,
+                    labelBackgroundPaint,
+                    labelBorderPaint,
+                    labelTextPaint,
+                    labelFont,
+                    left,
+                    groupWidth,
+                    total[i],
+                    yAxisMax,
+                    plotRect);
 
                 DrawHistoryDateLabel(canvas, dateTextPaint, dateFont, records[i].Day, left + groupWidth / 2f, plotRect.Bottom + 24, records.Length);
             }

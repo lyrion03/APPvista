@@ -705,73 +705,306 @@
                                 </Grid>
                             </Grid>
 
-                            <UniformGrid Margin="0,16,0,0"
-                                         Columns="2">
-                                <Border Margin="0,0,8,8"
+                            <Grid Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0"
+                                        Grid.Column="0"
+                                        MinWidth="182"
                                         Padding="14"
                                         Background="#1D3C35"
-                                        CornerRadius="18">
+                                        CornerRadius="18"
+                                        HorizontalAlignment="Stretch">
                                     <StackPanel>
                                         <TextBlock Foreground="#A9C0B2"
                                                    FontSize="12"
                                                    Text="应用总流量" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Foreground="#FFF7EC"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistoryApplicationNetworkDisplay}"
-                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding HistoryApplicationNetworkTotalDisplay}"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Left">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="下载" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistoryApplicationDownloadDisplay}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="18,0,0,0"
+                                                            Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="上传" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistoryApplicationUploadDisplay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
-                                <Border Margin="8,0,0,8"
+
+                                <Border Grid.Row="0"
+                                        Grid.Column="2"
+                                        MinWidth="182"
                                         Padding="14"
                                         Background="#1D3C35"
-                                        CornerRadius="18">
+                                        CornerRadius="18"
+                                        HorizontalAlignment="Stretch">
                                     <StackPanel>
                                         <TextBlock Foreground="#A9C0B2"
                                                    FontSize="12"
                                                    Text="应用 IO 总量" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Foreground="#FFF7EC"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistoryApplicationIoDisplay}"
-                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding HistoryApplicationIoTotalDisplay}"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Left">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="读取" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistoryApplicationReadDisplay}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="18,0,0,0"
+                                                            Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="写入" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistoryApplicationWriteDisplay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
-                                <Border Margin="0,8,8,0"
+
+                                <Border Grid.Row="2"
+                                        Grid.Column="0"
+                                        MinWidth="182"
                                         Padding="14"
                                         Background="#1D3C35"
-                                        CornerRadius="18">
+                                        CornerRadius="18"
+                                        HorizontalAlignment="Stretch">
                                     <StackPanel>
                                         <TextBlock Foreground="#A9C0B2"
                                                    FontSize="12"
                                                    Text="系统总流量" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Foreground="#FFF7EC"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistorySystemNetworkDisplay}"
-                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding HistorySystemNetworkTotalDisplay}"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Left">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryNetworkSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="下载" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistorySystemDownloadDisplay}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="18,0,0,0"
+                                                            Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="上传" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistorySystemUploadDisplay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
-                                <Border Margin="8,8,0,0"
+
+                                <Border Grid.Row="2"
+                                        Grid.Column="2"
+                                        MinWidth="182"
                                         Padding="14"
                                         Background="#1D3C35"
-                                        CornerRadius="18">
+                                        CornerRadius="18"
+                                        HorizontalAlignment="Stretch">
                                     <StackPanel>
                                         <TextBlock Foreground="#A9C0B2"
                                                    FontSize="12"
                                                    Text="系统 IO 总量" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Foreground="#FFF7EC"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Text="{Binding HistorySystemIoDisplay}"
-                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Foreground="#FFF7EC"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding HistorySystemIoTotalDisplay}"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Left">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHistoryIoSplitMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="读取" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistorySystemReadDisplay}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="18,0,0,0"
+                                                            Orientation="Horizontal">
+                                                    <TextBlock Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="写入" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Foreground="#FFF7EC"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding HistorySystemWriteDisplay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
-                            </UniformGrid>
+                            </Grid>
                             </StackPanel>
                         </Border>
                     </Grid>

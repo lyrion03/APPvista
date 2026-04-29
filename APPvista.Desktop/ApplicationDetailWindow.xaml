@@ -113,6 +113,45 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="HeaderIconActionButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="#25433C" />
+            <Setter Property="Foreground" Value="#FFF7EB" />
+            <Setter Property="BorderBrush" Value="#5D8577" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="9">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#31574D" />
+                                <Setter TargetName="RootBorder" Property="BorderBrush" Value="#89B3A4" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#183B31" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                                <Setter TargetName="RootBorder" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="24">
@@ -122,7 +161,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Padding="24"
+        <Border Padding="24,17"
                 Background="#18352F"
                 CornerRadius="28">
             <Grid>
@@ -136,17 +175,53 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Width="76"
-                        Height="76"
-                        Background="#F5E8D3"
-                        CornerRadius="22">
-                    <Image Width="48"
-                           Height="48"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}"
-                           Stretch="Uniform" />
-                </Border>
+                <Grid Width="76"
+                      Height="95">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="5" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Width="62"
+                            Height="62"
+                            VerticalAlignment="Top"
+                            HorizontalAlignment="Center"
+                            Background="#F5E8D3"
+                            CornerRadius="20">
+                        <Image Width="50"
+                               Height="50"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Source="{Binding IconSourcePath, Converter={StaticResource IconPathToImageSourceConverter}}"
+                               Stretch="Uniform" />
+                    </Border>
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Bottom">
+                        <Button Command="{Binding OpenOnlineSearchCommand}"
+                                Style="{StaticResource HeaderIconActionButtonStyle}"
+                                ToolTip="在线搜索应用"
+                                Content="&#xE721;" />
+                        <Button Margin="8,0,0,0"
+                                Command="{Binding OpenExecutablePropertiesCommand}"
+                                Style="{StaticResource HeaderIconActionButtonStyle}"
+                                ToolTip="打开文件属性">
+                            <Viewbox Width="15"
+                                     Height="15">
+                                <Canvas Width="16"
+                                        Height="16">
+                                    <Path Fill="#FFF7EB"
+                                          Data="M2,5 L6,5 L7.4,3.6 L14,3.6 C14.6,3.6 15,4 15,4.6 L15,12.8 C15,13.4 14.6,13.8 14,13.8 L2,13.8 C1.4,13.8 1,13.4 1,12.8 L1,6 C1,5.4 1.4,5 2,5 Z" />
+                                    <Path Fill="#18352F"
+                                          Opacity="0.18"
+                                          Data="M1.8,6.2 L14.2,6.2 L13.5,12.8 L2.5,12.8 Z" />
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
                 <StackPanel Grid.Column="2">
                     <TextBlock Foreground="#D5E5DA"

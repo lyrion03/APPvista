@@ -117,6 +117,18 @@ public sealed partial class DashboardViewModel
     public string HistoryApplicationIoDisplay => BuildHistoryIoDisplay(_historySummary.AppIoReadBytes, _historySummary.AppIoWriteBytes, _historySummary.AppPeakIoReadBytes, _historySummary.AppPeakIoWriteBytes);
     public string HistorySystemNetworkDisplay => BuildHistoryNetworkDisplay(_historySummary.SystemDownloadBytes, _historySummary.SystemUploadBytes, _historySummary.SystemPeakDownloadBytes, _historySummary.SystemPeakUploadBytes);
     public string HistorySystemIoDisplay => BuildHistoryIoDisplay(_historySummary.SystemIoReadBytes, _historySummary.SystemIoWriteBytes, _historySummary.SystemPeakIoReadBytes, _historySummary.SystemPeakIoWriteBytes);
+    public string HistoryApplicationNetworkTotalDisplay => $"总量 {FormatBytes(_historySummary.AppDownloadBytes + _historySummary.AppUploadBytes)}";
+    public string HistoryApplicationDownloadDisplay => FormatBytes(_historySummary.AppDownloadBytes);
+    public string HistoryApplicationUploadDisplay => FormatBytes(_historySummary.AppUploadBytes);
+    public string HistoryApplicationIoTotalDisplay => $"总量 {FormatBytes(_historySummary.AppIoReadBytes + _historySummary.AppIoWriteBytes)}";
+    public string HistoryApplicationReadDisplay => FormatBytes(_historySummary.AppIoReadBytes);
+    public string HistoryApplicationWriteDisplay => FormatBytes(_historySummary.AppIoWriteBytes);
+    public string HistorySystemNetworkTotalDisplay => $"总量 {FormatBytes(_historySummary.SystemDownloadBytes + _historySummary.SystemUploadBytes)}";
+    public string HistorySystemDownloadDisplay => FormatBytes(_historySummary.SystemDownloadBytes);
+    public string HistorySystemUploadDisplay => FormatBytes(_historySummary.SystemUploadBytes);
+    public string HistorySystemIoTotalDisplay => $"总量 {FormatBytes(_historySummary.SystemIoReadBytes + _historySummary.SystemIoWriteBytes)}";
+    public string HistorySystemReadDisplay => FormatBytes(_historySummary.SystemIoReadBytes);
+    public string HistorySystemWriteDisplay => FormatBytes(_historySummary.SystemIoWriteBytes);
     public string HistoryCalendarMonthDisplay => $"{_historyDisplayedMonth:yyyy 年 MM 月}";
     public int HistoryTopN
     {
@@ -1668,6 +1680,18 @@ public sealed partial class DashboardViewModel
         RaisePropertyChanged(nameof(HistoryApplicationIoDisplay));
         RaisePropertyChanged(nameof(HistorySystemNetworkDisplay));
         RaisePropertyChanged(nameof(HistorySystemIoDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationNetworkTotalDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationDownloadDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationUploadDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationIoTotalDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationReadDisplay));
+        RaisePropertyChanged(nameof(HistoryApplicationWriteDisplay));
+        RaisePropertyChanged(nameof(HistorySystemNetworkTotalDisplay));
+        RaisePropertyChanged(nameof(HistorySystemDownloadDisplay));
+        RaisePropertyChanged(nameof(HistorySystemUploadDisplay));
+        RaisePropertyChanged(nameof(HistorySystemIoTotalDisplay));
+        RaisePropertyChanged(nameof(HistorySystemReadDisplay));
+        RaisePropertyChanged(nameof(HistorySystemWriteDisplay));
         RaisePropertyChanged(nameof(HistoryTrafficPieChartSource));
         RaisePropertyChanged(nameof(HistoryIoPieChartSource));
         RaisePropertyChanged(nameof(HistoryForegroundPieChartSource));

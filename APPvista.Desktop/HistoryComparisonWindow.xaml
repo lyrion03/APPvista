@@ -146,6 +146,88 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="HeaderActionButtonStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="#21483D" />
+            <Setter Property="Foreground" Value="#E8F4EE" />
+            <Setter Property="BorderBrush" Value="#6EA08F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#285244" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#89B3A4" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#183B31" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                                <Setter TargetName="Root" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HeaderActionToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="#21483D" />
+            <Setter Property="Foreground" Value="#E8F4EE" />
+            <Setter Property="BorderBrush" Value="#6EA08F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#285244" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#89B3A4" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#183B31" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#31574D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#89B3A4" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#8FA79A" />
+                                <Setter TargetName="Root" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <ScrollViewer x:Name="WindowScrollViewer"
@@ -238,30 +320,19 @@
                                                   IsChecked="{Binding IsSortByAverageIopsMode, Mode=OneWay}" />
                                     </MenuItem>
                                 </Menu>
-                                <Button Padding="12,6"
-                                        Margin="0,0,10,0"
-                                        Background="#21483D"
-                                        BorderBrush="#6EA08F"
-                                        BorderThickness="1"
-                                        Cursor="Hand"
+                                <Button Margin="0,0,10,0"
                                         Command="{Binding ToggleAllApplicationsCommand}"
                                         Content="{Binding ToggleAllApplicationsText}"
-                                        Foreground="#E8F4EE"
-                                        FontSize="12"
-                                        FontWeight="SemiBold" />
+                                        Style="{StaticResource HeaderActionButtonStyle}" />
                                 <Grid>
                                     <ToggleButton x:Name="MetricSelectorButton"
-                                                  Padding="16,10"
-                                                  Background="#21483D"
-                                                  BorderBrush="#6EA08F"
-                                                  BorderThickness="1"
-                                                  FontSize="13"
-                                                  FontWeight="SemiBold"
-                                                  Foreground="#E8F4EE"
                                                   IsChecked="{Binding IsMetricSelectorOpen, Mode=TwoWay}"
-                                                  Content="显示指标" />
+                                                  Content="显示指标"
+                                                  Style="{StaticResource HeaderActionToggleStyle}" />
                                     <Popup PlacementTarget="{Binding ElementName=MetricSelectorButton}"
                                            Placement="Bottom"
+                                           AllowsTransparency="True"
+                                           PopupAnimation="Fade"
                                            IsOpen="{Binding IsMetricSelectorOpen}"
                                            StaysOpen="False">
                                         <Border Margin="0,8,0,0"
