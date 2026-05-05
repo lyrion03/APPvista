@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:services="clr-namespace:APPvista.Desktop.Services"
         Title="APPvista - 应用详情"
-        Width="980"
+        Width="992"
         Height="1080"
-        MinWidth="980"
+        MinWidth="992"
         MinHeight="520"
         Icon="Assets/APPvista.ico"
         Background="#F3EEE5"
@@ -368,53 +368,103 @@
                 </Border>
 
                 <Border Grid.Column="6"
-                        Padding="16"
+                        Padding="14,12"
                         Background="#25433C"
                         CornerRadius="20">
-                    <StackPanel>
-                        <TextBlock Foreground="#D5E5DA"
-                                   FontSize="12"
-                                   Text="展示选项" />
-                        <Menu Margin="0,10,0,0"
+                    <Grid>
+                        <Grid.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
+                        </Grid.Resources>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="7" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Foreground="#D5E5DA"
+                                       FontSize="12"
+                                       Text="展示选项" />
+                            <Menu Grid.Column="1"
+                                  HorizontalAlignment="Right"
+                                  Style="{StaticResource OverviewMenuStyle}"
+                                  Visibility="{Binding IsCurrentDataMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <MenuItem Header="网络"
+                                          Style="{StaticResource OverviewMenuItemStyle}">
+                                    <MenuItem Header="隐藏"
+                                              Command="{Binding SetNetworkHiddenDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsNetworkHiddenMode, Mode=OneWay}" />
+                                    <MenuItem Header="总量"
+                                              Command="{Binding SetNetworkTotalDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsNetworkTotalMode, Mode=OneWay}" />
+                                    <MenuItem Header="分离"
+                                              Command="{Binding SetNetworkSplitDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsNetworkSplitMode, Mode=OneWay}" />
+                                </MenuItem>
+                                <MenuItem Header="应用 I/O"
+                                          Margin="10,0,0,0"
+                                          Style="{StaticResource OverviewMenuItemStyle}">
+                                    <MenuItem Header="隐藏"
+                                              Command="{Binding SetIoHiddenDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsIoHiddenMode, Mode=OneWay}" />
+                                    <MenuItem Header="总量"
+                                              Command="{Binding SetIoTotalDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsIoTotalMode, Mode=OneWay}" />
+                                    <MenuItem Header="分离"
+                                              Command="{Binding SetIoSplitDisplayCommand}"
+                                              IsCheckable="True"
+                                              IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
+                                </MenuItem>
+                            </Menu>
+                        </Grid>
+
+                        <Menu Grid.Row="2"
                               Style="{StaticResource OverviewMenuStyle}">
-                            <Menu.Resources>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#31574D" />
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#31574D" />
-                                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#25433C" />
-                                <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF7EC" />
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFF7EC" />
-                                <Style TargetType="MenuItem" BasedOn="{StaticResource OverviewMenuItemStyle}" />
-                            </Menu.Resources>
-                            <MenuItem Header="网络"
+                            <MenuItem Header="CPU"
                                       Style="{StaticResource OverviewMenuItemStyle}">
                                 <MenuItem Header="隐藏"
-                                          Command="{Binding SetNetworkHiddenDisplayCommand}"
+                                          Command="{Binding SetCpuHiddenDisplayCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsNetworkHiddenMode, Mode=OneWay}" />
-                                <MenuItem Header="总量"
-                                          Command="{Binding SetNetworkTotalDisplayCommand}"
+                                          IsChecked="{Binding IsCpuHiddenMode, Mode=OneWay}" />
+                                <MenuItem Header="显示"
+                                          Command="{Binding SetCpuVisibleDisplayCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsNetworkTotalMode, Mode=OneWay}" />
-                                <MenuItem Header="分离"
-                                          Command="{Binding SetNetworkSplitDisplayCommand}"
-                                          IsCheckable="True"
-                                          IsChecked="{Binding IsNetworkSplitMode, Mode=OneWay}" />
+                                          IsChecked="{Binding IsCpuVisibleMode, Mode=OneWay}" />
                             </MenuItem>
-                            <MenuItem Header="应用 I/O"
+                            <MenuItem Header="内存"
                                       Margin="10,0,0,0"
                                       Style="{StaticResource OverviewMenuItemStyle}">
                                 <MenuItem Header="隐藏"
-                                          Command="{Binding SetIoHiddenDisplayCommand}"
+                                          Command="{Binding SetMemoryHiddenDisplayCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsIoHiddenMode, Mode=OneWay}" />
-                                <MenuItem Header="总量"
-                                          Command="{Binding SetIoTotalDisplayCommand}"
+                                          IsChecked="{Binding IsMemoryHiddenMode, Mode=OneWay}" />
+                                <MenuItem Header="工作集"
+                                          Command="{Binding SetMemoryWorkingSetDisplayCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsIoTotalMode, Mode=OneWay}" />
-                                <MenuItem Header="分离"
-                                          Command="{Binding SetIoSplitDisplayCommand}"
+                                          IsChecked="{Binding IsMemoryWorkingSetMode, Mode=OneWay}" />
+                                <MenuItem Header="私有内存"
+                                          Command="{Binding SetMemoryPrivateDisplayCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsIoSplitMode, Mode=OneWay}" />
+                                          IsChecked="{Binding IsMemoryPrivateMode, Mode=OneWay}" />
+                                <MenuItem Header="提交大小"
+                                          Command="{Binding SetMemoryCommitDisplayCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsMemoryCommitMode, Mode=OneWay}" />
                             </MenuItem>
                             <MenuItem Header="绘图尺度"
                                       Margin="10,0,0,0">
@@ -467,8 +517,7 @@
                                           IsChecked="{Binding IsHistoryOverlayForegroundDurationMode, Mode=OneWay}" />
                             </MenuItem>
                         </Menu>
-                        
-                    </StackPanel>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>
@@ -485,229 +534,300 @@
                     <TranslateTransform X="0" />
                 </ScrollViewer.RenderTransform>
                 <StackPanel>
-                <Border Padding="0"
+                <Border Padding="18"
                         Background="#FFFDF9"
                         CornerRadius="24">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="14" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Padding="18"
+                    <WrapPanel ItemWidth="438"
+                               Orientation="Horizontal">
+                        <Border Width="438"
+                                Margin="0,0,14,14"
+                                Padding="18"
                                 Background="#FFF8EF"
-                                CornerRadius="18">
+                                CornerRadius="18"
+                                Visibility="{Binding ShowNetworkChart, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock Foreground="#7B7F74"
                                            FontSize="12"
                                            Text="{Binding NetworkChartTitle}" />
-                                <Grid Height="20"
-                                      Margin="0,12,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid>
-                                        <TextBlock Foreground="#506057"
-                                                   VerticalAlignment="Center"
-                                                   Opacity="0"
-                                                   IsHitTestVisible="False"
-                                                   Text="当前已隐藏网络图表" />
-                                        <TextBlock Foreground="#506057"
-                                                   VerticalAlignment="Center"
-                                                   Text="当前已隐藏网络图表"
-                                                   Visibility="{Binding ShowNetworkHiddenNotice, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                    </Grid>
-                                    <StackPanel Grid.Column="1"
-                                                Margin="10,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Orientation="Horizontal"
-                                                Visibility="{Binding ShowNetworkLegend, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="10"
-                                                    Height="10"
-                                                    Margin="0,0,6,0"
-                                                    Background="#2D8CFF"
-                                                    CornerRadius="5" />
-                                            <TextBlock Foreground="#506057"
-                                                       FontSize="11"
-                                                       Text="{Binding NetworkPrimaryLegendLabel}" />
-                                        </StackPanel>
-                                        <StackPanel Margin="14,0,0,0"
-                                                    Orientation="Horizontal">
-                                            <Border Width="10"
-                                                    Height="10"
-                                                    Margin="0,0,6,0"
-                                                    Background="#FF8A3D"
-                                                    CornerRadius="5" />
-                                            <TextBlock Foreground="#506057"
-                                                       FontSize="11"
-                                                       Text="{Binding NetworkSecondaryLegendLabel}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
                                 <StackPanel Margin="0,12,0,0"
-                                            Visibility="{Binding ShowNetworkChart, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <Border Height="194"
-                                            CornerRadius="14"
-                                            ClipToBounds="True"
-                                            Background="#FFF8EF">
-                                        <Grid>
-                                            <Image Margin="-26,-12,-7,36"
-                                                   Height="180"
-                                                   VerticalAlignment="Top"
-                                                   Stretch="Fill"
-                                                   Source="{Binding NetworkChartSource}" />
-
-                                            <TextBlock Margin="8,6,0,0"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Top"
-                                                       Foreground="#7B7F74"
-                                                       FontSize="10"
-                                                       Background="#CCFFF8EF"
-                                                       Text="{Binding NetworkChartTopLabel}" />
-                                            <TextBlock Margin="8,0,0,30"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Bottom"
-                                                       Foreground="#7B7F74"
-                                                       FontSize="10"
-                                                       Background="#CCFFF8EF"
-                                                       Text="{Binding NetworkChartBottomLabel}" />
-
-                                            <Grid Margin="8,0,8,6"
-                                                  VerticalAlignment="Bottom">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisStartLabel}" />
-                                                <TextBlock Grid.Column="1"
-                                                           HorizontalAlignment="Center"
-                                                           Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisCenterLabel}" />
-                                                <TextBlock Grid.Column="2"
-                                                           Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisEndLabel}" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
+                                            Orientation="Horizontal"
+                                            Visibility="{Binding ShowNetworkLegend, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="10"
+                                                Height="10"
+                                                Margin="0,0,6,0"
+                                                Background="#2D8CFF"
+                                                CornerRadius="5" />
+                                        <TextBlock Foreground="#506057"
+                                                   FontSize="11"
+                                                   Text="{Binding NetworkPrimaryLegendLabel}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="14,0,0,0"
+                                                Orientation="Horizontal">
+                                        <Border Width="10"
+                                                Height="10"
+                                                Margin="0,0,6,0"
+                                                Background="#FF8A3D"
+                                                CornerRadius="5" />
+                                        <TextBlock Foreground="#506057"
+                                                   FontSize="11"
+                                                   Text="{Binding NetworkSecondaryLegendLabel}" />
+                                    </StackPanel>
                                 </StackPanel>
+                                <Border Height="194"
+                                        Margin="0,12,0,0"
+                                        Background="#FFF8EF"
+                                        ClipToBounds="True"
+                                        CornerRadius="14">
+                                    <Grid>
+                                        <Image Margin="-26,-12,-7,36"
+                                               Height="180"
+                                               VerticalAlignment="Top"
+                                               Stretch="Fill"
+                                               Source="{Binding NetworkChartSource}" />
+                                        <TextBlock Margin="8,6,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Background="#CCFFF8EF"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding NetworkChartTopLabel}" />
+                                        <TextBlock Margin="8,0,0,30"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Bottom"
+                                                   Background="#CCFFF8EF"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding NetworkChartBottomLabel}" />
+                                        <Grid Margin="8,0,8,6"
+                                              VerticalAlignment="Bottom">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisStartLabel}" />
+                                            <TextBlock Grid.Column="1"
+                                                       HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisCenterLabel}" />
+                                            <TextBlock Grid.Column="2"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisEndLabel}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="2"
+                        <Border Width="438"
+                                Margin="0,0,0,14"
                                 Padding="18"
                                 Background="#F7FBF6"
-                                CornerRadius="18">
+                                CornerRadius="18"
+                                Visibility="{Binding ShowIoChart, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock Foreground="#7B7F74"
                                            FontSize="12"
                                            Text="{Binding IoChartTitle}" />
-                                <Grid Height="20"
-                                      Margin="0,12,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid>
-                                        <TextBlock Foreground="#506057"
-                                                   VerticalAlignment="Center"
-                                                   Opacity="0"
-                                                   IsHitTestVisible="False"
-                                                   Text="当前已隐藏 I/O 图表" />
-                                        <TextBlock Foreground="#506057"
-                                                   VerticalAlignment="Center"
-                                                   Text="当前已隐藏 I/O 图表"
-                                                   Visibility="{Binding ShowIoHiddenNotice, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                    </Grid>
-                                    <StackPanel Grid.Column="1"
-                                                Margin="10,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Orientation="Horizontal"
-                                                Visibility="{Binding ShowIoLegend, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="10"
-                                                    Height="10"
-                                                    Margin="0,0,6,0"
-                                                    Background="#17766C"
-                                                    CornerRadius="5" />
-                                            <TextBlock Foreground="#506057"
-                                                       FontSize="11"
-                                                       Text="{Binding IoPrimaryLegendLabel}" />
-                                        </StackPanel>
-                                        <StackPanel Margin="14,0,0,0"
-                                                    Orientation="Horizontal">
-                                            <Border Width="10"
-                                                    Height="10"
-                                                    Margin="0,0,6,0"
-                                                    Background="#D06A43"
-                                                    CornerRadius="5" />
-                                            <TextBlock Foreground="#506057"
-                                                       FontSize="11"
-                                                       Text="{Binding IoSecondaryLegendLabel}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
                                 <StackPanel Margin="0,12,0,0"
-                                            Visibility="{Binding ShowIoChart, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <Border Height="194"
-                                            CornerRadius="14"
-                                            ClipToBounds="True"
-                                            Background="#F7FBF6">
-                                        <Grid>
-                                            <Image Margin="-33,-12,-7,36.7"
-                                                   Height="180"
-                                                   VerticalAlignment="Top"
-                                                   Stretch="Fill"
-                                                   Source="{Binding IoChartSource}" />
-
-                                            <TextBlock Margin="8,6,0,0"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Top"
-                                                       Foreground="#7B7F74"
-                                                       FontSize="10"
-                                                       Background="#CCF7FBF6"
-                                                       Text="{Binding IoChartTopLabel}" />
-                                            <TextBlock Margin="8,0,0,30"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Bottom"
-                                                       Foreground="#7B7F74"
-                                                       FontSize="10"
-                                                       Background="#CCF7FBF6"
-                                                       Text="{Binding IoChartBottomLabel}" />
-
-                                            <Grid Margin="8,0,8,6"
-                                                  VerticalAlignment="Bottom">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisStartLabel}" />
-                                                <TextBlock Grid.Column="1"
-                                                           HorizontalAlignment="Center"
-                                                           Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisCenterLabel}" />
-                                                <TextBlock Grid.Column="2"
-                                                           Foreground="#7B7F74"
-                                                           FontSize="10"
-                                                           Text="{Binding ChartXAxisEndLabel}" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
+                                            Orientation="Horizontal"
+                                            Visibility="{Binding ShowIoLegend, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="10"
+                                                Height="10"
+                                                Margin="0,0,6,0"
+                                                Background="#17766C"
+                                                CornerRadius="5" />
+                                        <TextBlock Foreground="#506057"
+                                                   FontSize="11"
+                                                   Text="{Binding IoPrimaryLegendLabel}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="14,0,0,0"
+                                                Orientation="Horizontal">
+                                        <Border Width="10"
+                                                Height="10"
+                                                Margin="0,0,6,0"
+                                                Background="#D06A43"
+                                                CornerRadius="5" />
+                                        <TextBlock Foreground="#506057"
+                                                   FontSize="11"
+                                                   Text="{Binding IoSecondaryLegendLabel}" />
+                                    </StackPanel>
                                 </StackPanel>
+                                <Border Height="194"
+                                        Margin="0,12,0,0"
+                                        Background="#F7FBF6"
+                                        ClipToBounds="True"
+                                        CornerRadius="14">
+                                    <Grid>
+                                        <Image Margin="-33,-12,-7,36.7"
+                                               Height="180"
+                                               VerticalAlignment="Top"
+                                               Stretch="Fill"
+                                               Source="{Binding IoChartSource}" />
+                                        <TextBlock Margin="8,6,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Background="#CCF7FBF6"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding IoChartTopLabel}" />
+                                        <TextBlock Margin="8,0,0,30"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Bottom"
+                                                   Background="#CCF7FBF6"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding IoChartBottomLabel}" />
+                                        <Grid Margin="8,0,8,6"
+                                              VerticalAlignment="Bottom">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisStartLabel}" />
+                                            <TextBlock Grid.Column="1"
+                                                       HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisCenterLabel}" />
+                                            <TextBlock Grid.Column="2"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisEndLabel}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
                         </Border>
-                    </Grid>
+
+                        <Border Width="438"
+                                Margin="0,0,14,0"
+                                Padding="18"
+                                Background="#FDF7F0"
+                                CornerRadius="18"
+                                Visibility="{Binding ShowCpuChart, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Foreground="#7B7F74"
+                                           FontSize="12"
+                                           Text="{Binding CpuChartTitle}" />
+                                <Border Height="194"
+                                        Margin="0,12,0,0"
+                                        Background="#FDF7F0"
+                                        ClipToBounds="True"
+                                        CornerRadius="14">
+                                    <Grid>
+                                        <Image Margin="-20,-12,-7,36"
+                                               Height="180"
+                                               VerticalAlignment="Top"
+                                               Stretch="Fill"
+                                               Source="{Binding CpuChartSource}" />
+                                        <TextBlock Margin="8,6,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Background="#CCFDF7F0"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding CpuChartTopLabel}" />
+                                        <TextBlock Margin="8,0,0,30"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Bottom"
+                                                   Background="#CCFDF7F0"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding CpuChartBottomLabel}" />
+                                        <Grid Margin="8,0,8,6"
+                                              VerticalAlignment="Bottom">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisStartLabel}" />
+                                            <TextBlock Grid.Column="1"
+                                                       HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisCenterLabel}" />
+                                            <TextBlock Grid.Column="2"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisEndLabel}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Width="438"
+                                Padding="18"
+                                Background="#F4F6FB"
+                                CornerRadius="18"
+                                Visibility="{Binding ShowMemoryChart, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Foreground="#7B7F74"
+                                           FontSize="12"
+                                           Text="{Binding MemoryChartTitle}" />
+                                <Border Height="194"
+                                        Margin="0,12,0,0"
+                                        Background="#F4F6FB"
+                                        ClipToBounds="True"
+                                        CornerRadius="14">
+                                    <Grid>
+                                        <Image Margin="-20,-12,-7,36"
+                                               Height="180"
+                                               VerticalAlignment="Top"
+                                               Stretch="Fill"
+                                               Source="{Binding MemoryChartSource}" />
+                                        <TextBlock Margin="8,6,0,0"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Background="#CCF4F6FB"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding MemoryChartTopLabel}" />
+                                        <TextBlock Margin="8,0,0,30"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Bottom"
+                                                   Background="#CCF4F6FB"
+                                                   FontSize="10"
+                                                   Foreground="#7B7F74"
+                                                   Text="{Binding MemoryChartBottomLabel}" />
+                                        <Grid Margin="8,0,8,6"
+                                              VerticalAlignment="Bottom">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisStartLabel}" />
+                                            <TextBlock Grid.Column="1"
+                                                       HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisCenterLabel}" />
+                                            <TextBlock Grid.Column="2"
+                                                       FontSize="10"
+                                                       Foreground="#7B7F74"
+                                                       Text="{Binding ChartXAxisEndLabel}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
                 </Border>
 
                 <Border Margin="0,16,0,0"

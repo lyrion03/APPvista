@@ -73,6 +73,10 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _refreshTimer;
     private readonly List<TimedMetricSample> _networkHistory = new();
     private readonly List<TimedMetricSample> _ioHistory = new();
+    private readonly List<TimedMetricSample> _cpuHistory = new();
+    private readonly List<TimedMetricSample> _workingSetHistory = new();
+    private readonly List<TimedMetricSample> _privateMemoryHistory = new();
+    private readonly List<TimedMetricSample> _commitSizeHistory = new();
     private DetailDataMode _selectedDataMode = DetailDataMode.Current;
     private HistoryAnalysisDimension _selectedHistoryDimension = HistoryAnalysisDimension.Day;
     private ApplicationHistorySummary _historySummary = ApplicationHistorySummary.Empty;
@@ -87,10 +91,14 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
     private ImageSource? _networkChartSource;
     private ImageSource? _ioChartSource;
+    private ImageSource? _cpuChartSource;
+    private ImageSource? _memoryChartSource;
     private ImageSource? _historyNetworkChartSource;
     private ImageSource? _historyIoChartSource;
     private string _networkChartTopLabel = "1 KB/s";
     private string _ioChartTopLabel = "1 KB/s";
+    private string _cpuChartTopLabel = "100.0%";
+    private string _memoryChartTopLabel = "1 KB";
     private string _historyNetworkChartTopLabel = "1 KB";
     private string _historyIoChartTopLabel = "1 KB";
     private bool _pendingStaticApplicationRefresh;
@@ -108,6 +116,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     private bool _hasLoadedHistoryDatabaseRecords;
     private readonly RelayCommand _openOnlineSearchCommand;
     private readonly RelayCommand _openExecutablePropertiesCommand;
+    private readonly RelayCommand _setCpuHiddenDisplayCommand;
+    private readonly RelayCommand _setCpuVisibleDisplayCommand;
+    private readonly RelayCommand _setMemoryHiddenDisplayCommand;
+    private readonly RelayCommand _setMemoryWorkingSetDisplayCommand;
+    private readonly RelayCommand _setMemoryPrivateDisplayCommand;
+    private readonly RelayCommand _setMemoryCommitDisplayCommand;
 
     public ApplicationDetailViewModel(ApplicationCardViewModel application, DetailDisplayPreferences preferences, string databasePath)
         : this(application, preferences, databasePath, isHistoryOnlyMode: false, initialDataMode: DetailDataMode.Current)
@@ -197,6 +211,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         SetHistoryOverlayOffCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayOffOption);
         SetHistoryOverlayUsageDurationCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayUsageDurationOption);
         SetHistoryOverlayForegroundDurationCommand = new RelayCommand(() => SelectedHistoryOverlayOption = DetailDisplayPreferences.HistoryOverlayForegroundDurationOption);
+        _setCpuHiddenDisplayCommand = new RelayCommand(() => SelectedCpuDisplayOption = DetailDisplayPreferences.HiddenOption);
+        _setCpuVisibleDisplayCommand = new RelayCommand(() => SelectedCpuDisplayOption = DetailDisplayPreferences.VisibleOption);
+        _setMemoryHiddenDisplayCommand = new RelayCommand(() => SelectedMemoryDisplayOption = DetailDisplayPreferences.HiddenOption);
+        _setMemoryWorkingSetDisplayCommand = new RelayCommand(() => SelectedMemoryDisplayOption = DetailDisplayPreferences.WorkingSetOption);
+        _setMemoryPrivateDisplayCommand = new RelayCommand(() => SelectedMemoryDisplayOption = DetailDisplayPreferences.PrivateMemoryOption);
+        _setMemoryCommitDisplayCommand = new RelayCommand(() => SelectedMemoryDisplayOption = DetailDisplayPreferences.CommitSizeOption);
         ShowCurrentDataCommand = new RelayCommand(ShowCurrentData);
         ShowHistoryDataCommand = new RelayCommand(ShowHistoryData);
         SetHistoryDayDimensionCommand = new RelayCommand(() => SetHistoryDimension(HistoryAnalysisDimension.Day));
@@ -322,6 +342,18 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         set => _preferences.ForegroundBackgroundOption = value;
     }
 
+    public string SelectedCpuDisplayOption
+    {
+        get => _preferences.CpuDisplayOption;
+        set => _preferences.CpuDisplayOption = value;
+    }
+
+    public string SelectedMemoryDisplayOption
+    {
+        get => _preferences.MemoryDisplayOption;
+        set => _preferences.MemoryDisplayOption = value;
+    }
+
     public string SelectedChartScaleOption
     {
         get => _preferences.ChartScaleOption;
@@ -340,6 +372,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public bool IsIoHiddenMode => _preferences.IoDisplayOption == DetailDisplayPreferences.HiddenOption;
     public bool IsIoTotalMode => _preferences.IoDisplayOption == DetailDisplayPreferences.TotalOption;
     public bool IsIoSplitMode => _preferences.IoDisplayOption == DetailDisplayPreferences.SplitOption;
+    public bool IsCpuHiddenMode => _preferences.CpuDisplayOption == DetailDisplayPreferences.HiddenOption;
+    public bool IsCpuVisibleMode => _preferences.CpuDisplayOption == DetailDisplayPreferences.VisibleOption;
+    public bool IsMemoryHiddenMode => _preferences.MemoryDisplayOption == DetailDisplayPreferences.HiddenOption;
+    public bool IsMemoryWorkingSetMode => _preferences.MemoryDisplayOption == DetailDisplayPreferences.WorkingSetOption;
+    public bool IsMemoryPrivateMode => _preferences.MemoryDisplayOption == DetailDisplayPreferences.PrivateMemoryOption;
+    public bool IsMemoryCommitMode => _preferences.MemoryDisplayOption == DetailDisplayPreferences.CommitSizeOption;
     public bool IsChartScale30SecondsMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale30SecondsOption;
     public bool IsChartScale1MinuteMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale1MinuteOption;
     public bool IsChartScale2MinutesMode => _preferences.ChartScaleOption == DetailDisplayPreferences.ChartScale2MinutesOption;
@@ -379,12 +417,16 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public bool ShowIoTotals => !_preferences.IsIoHidden && !_preferences.IsIoSplit;
     public bool ShowIoSplit => !_preferences.IsIoHidden && _preferences.IsIoSplit;
     public bool ShowIoChart => !_preferences.IsIoHidden;
+    public bool ShowCpuChart => _preferences.IsCpuVisible;
+    public bool ShowMemoryChart => !_preferences.IsMemoryHidden;
     public bool ShowForegroundBackgroundDetails => _preferences.IsForegroundBackgroundVisible;
     public bool ShowNetworkLegend => ShowNetworkChart && _preferences.IsNetworkSplit;
     public bool ShowIoLegend => ShowIoChart && _preferences.IsIoSplit;
 
     public string NetworkChartTitle => _preferences.IsNetworkSplit ? $"{HistorySeconds} 秒网络趋势（上下行）" : $"{HistorySeconds} 秒网络趋势（总量）";
     public string IoChartTitle => _preferences.IsIoSplit ? $"{HistorySeconds} 秒 I/O 趋势（读写）" : $"{HistorySeconds} 秒 I/O 趋势（总量）";
+    public string CpuChartTitle => $"{HistorySeconds} 秒 CPU 趋势";
+    public string MemoryChartTitle => $"{HistorySeconds} 秒内存趋势（{GetMemoryChartModeLabel()}）";
     public string HistoryNetworkChartTitle => _preferences.IsNetworkSplit ? $"{HistoryDimensionTitle}网络趋势（上下行）" : $"{HistoryDimensionTitle}网络趋势（总量）";
     public string HistoryIoChartTitle => _preferences.IsIoSplit ? $"{HistoryDimensionTitle} I/O 趋势（读写）" : $"{HistoryDimensionTitle} I/O 趋势（总量）";
     public string ChartXAxisStartLabel => $"{HistorySeconds} 秒前";
@@ -409,6 +451,20 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     }
 
     public string IoChartBottomLabel => "0 B/s";
+    public string CpuChartTopLabel
+    {
+        get => _cpuChartTopLabel;
+        private set => SetProperty(ref _cpuChartTopLabel, value);
+    }
+
+    public string CpuChartBottomLabel => "0";
+    public string MemoryChartTopLabel
+    {
+        get => _memoryChartTopLabel;
+        private set => SetProperty(ref _memoryChartTopLabel, value);
+    }
+
+    public string MemoryChartBottomLabel => "0";
     public string HistoryNetworkChartTopLabel
     {
         get => _historyNetworkChartTopLabel;
@@ -438,6 +494,18 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     {
         get => _ioChartSource;
         private set => SetProperty(ref _ioChartSource, value);
+    }
+
+    public ImageSource? CpuChartSource
+    {
+        get => _cpuChartSource;
+        private set => SetProperty(ref _cpuChartSource, value);
+    }
+
+    public ImageSource? MemoryChartSource
+    {
+        get => _memoryChartSource;
+        private set => SetProperty(ref _memoryChartSource, value);
     }
 
     public ImageSource? HistoryNetworkChartSource
@@ -477,6 +545,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
     public ICommand SetIoHiddenDisplayCommand { get; }
     public ICommand SetIoTotalDisplayCommand { get; }
     public ICommand SetIoSplitDisplayCommand { get; }
+    public ICommand SetCpuHiddenDisplayCommand => _setCpuHiddenDisplayCommand;
+    public ICommand SetCpuVisibleDisplayCommand => _setCpuVisibleDisplayCommand;
+    public ICommand SetMemoryHiddenDisplayCommand => _setMemoryHiddenDisplayCommand;
+    public ICommand SetMemoryWorkingSetDisplayCommand => _setMemoryWorkingSetDisplayCommand;
+    public ICommand SetMemoryPrivateDisplayCommand => _setMemoryPrivateDisplayCommand;
+    public ICommand SetMemoryCommitDisplayCommand => _setMemoryCommitDisplayCommand;
     public ICommand SetChartScale30SecondsCommand { get; }
     public ICommand SetChartScale1MinuteCommand { get; }
     public ICommand SetChartScale2MinutesCommand { get; }
@@ -517,11 +591,17 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         _pendingHistoryChartRefresh = false;
         _networkHistory.Clear();
         _ioHistory.Clear();
+        _cpuHistory.Clear();
+        _workingSetHistory.Clear();
+        _privateMemoryHistory.Clear();
+        _commitSizeHistory.Clear();
         _allHistoryDailyRecords = [];
         _historyDailyRecords = [];
         HistoryCalendarDays.Clear();
         NetworkChartSource = null;
         IoChartSource = null;
+        CpuChartSource = null;
+        MemoryChartSource = null;
         HistoryNetworkChartSource = null;
         HistoryIoChartSource = null;
     }
@@ -1142,6 +1222,8 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(SelectedNetworkDisplayOption));
         RaisePropertyChanged(nameof(SelectedIoDisplayOption));
         RaisePropertyChanged(nameof(SelectedForegroundBackgroundOption));
+        RaisePropertyChanged(nameof(SelectedCpuDisplayOption));
+        RaisePropertyChanged(nameof(SelectedMemoryDisplayOption));
         RaisePropertyChanged(nameof(SelectedChartScaleOption));
         RaisePropertyChanged(nameof(SelectedHistoryOverlayOption));
         RaisePropertyChanged(nameof(IsNetworkHiddenMode));
@@ -1150,6 +1232,12 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(IsIoHiddenMode));
         RaisePropertyChanged(nameof(IsIoTotalMode));
         RaisePropertyChanged(nameof(IsIoSplitMode));
+        RaisePropertyChanged(nameof(IsCpuHiddenMode));
+        RaisePropertyChanged(nameof(IsCpuVisibleMode));
+        RaisePropertyChanged(nameof(IsMemoryHiddenMode));
+        RaisePropertyChanged(nameof(IsMemoryWorkingSetMode));
+        RaisePropertyChanged(nameof(IsMemoryPrivateMode));
+        RaisePropertyChanged(nameof(IsMemoryCommitMode));
         RaisePropertyChanged(nameof(IsChartScale30SecondsMode));
         RaisePropertyChanged(nameof(IsChartScale1MinuteMode));
         RaisePropertyChanged(nameof(IsChartScale2MinutesMode));
@@ -1164,11 +1252,15 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(ShowIoTotals));
         RaisePropertyChanged(nameof(ShowIoSplit));
         RaisePropertyChanged(nameof(ShowIoChart));
+        RaisePropertyChanged(nameof(ShowCpuChart));
+        RaisePropertyChanged(nameof(ShowMemoryChart));
         RaisePropertyChanged(nameof(ShowForegroundBackgroundDetails));
         RaisePropertyChanged(nameof(ShowNetworkLegend));
         RaisePropertyChanged(nameof(ShowIoLegend));
         RaisePropertyChanged(nameof(NetworkChartTitle));
         RaisePropertyChanged(nameof(IoChartTitle));
+        RaisePropertyChanged(nameof(CpuChartTitle));
+        RaisePropertyChanged(nameof(MemoryChartTitle));
         RaisePropertyChanged(nameof(HistoryNetworkChartTitle));
         RaisePropertyChanged(nameof(HistoryIoChartTitle));
         RaisePropertyChanged(nameof(ChartXAxisStartLabel));
@@ -1346,6 +1438,36 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         return false;
     }
 
+    private IReadOnlyList<TimedMetricSample> GetSelectedMemoryHistory()
+    {
+        if (_preferences.IsMemoryPrivate)
+        {
+            return _privateMemoryHistory;
+        }
+
+        if (_preferences.IsMemoryCommit)
+        {
+            return _commitSizeHistory;
+        }
+
+        return _workingSetHistory;
+    }
+
+    private string GetMemoryChartModeLabel()
+    {
+        if (_preferences.IsMemoryPrivate)
+        {
+            return DetailDisplayPreferences.PrivateMemoryOption;
+        }
+
+        if (_preferences.IsMemoryCommit)
+        {
+            return DetailDisplayPreferences.CommitSizeOption;
+        }
+
+        return DetailDisplayPreferences.WorkingSetOption;
+    }
+
     public void ActivateHistoryMode()
     {
         ShowHistoryData();
@@ -1433,8 +1555,32 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
             Snapshot.RealtimeIoReadBytesPerSecond,
             Snapshot.RealtimeIoWriteBytesPerSecond));
 
+        _cpuHistory.Add(new TimedMetricSample(
+            timestampUtc,
+            Snapshot.CpuUsagePercent,
+            0d));
+
+        _workingSetHistory.Add(new TimedMetricSample(
+            timestampUtc,
+            Snapshot.WorkingSetBytes,
+            0d));
+
+        _privateMemoryHistory.Add(new TimedMetricSample(
+            timestampUtc,
+            Snapshot.PrivateMemoryBytes,
+            0d));
+
+        _commitSizeHistory.Add(new TimedMetricSample(
+            timestampUtc,
+            Snapshot.CommitSizeBytes,
+            0d));
+
         TrimHistory(_networkHistory, timestampUtc);
         TrimHistory(_ioHistory, timestampUtc);
+        TrimHistory(_cpuHistory, timestampUtc);
+        TrimHistory(_workingSetHistory, timestampUtc);
+        TrimHistory(_privateMemoryHistory, timestampUtc);
+        TrimHistory(_commitSizeHistory, timestampUtc);
     }
 
     private static void TrimHistory(List<TimedMetricSample> history, DateTime nowUtc)
@@ -1448,15 +1594,21 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         var renderVersion = Interlocked.Increment(ref _chartRenderVersion);
         var networkHistory = _networkHistory.ToArray();
         var ioHistory = _ioHistory.ToArray();
+        var cpuHistory = _cpuHistory.ToArray();
+        var memoryHistory = GetSelectedMemoryHistory().ToArray();
         var historySeconds = HistorySeconds;
         var showNetworkChart = ShowNetworkChart;
         var showIoChart = ShowIoChart;
+        var showCpuChart = ShowCpuChart;
+        var showMemoryChart = ShowMemoryChart;
         var isNetworkSplit = _preferences.IsNetworkSplit;
         var isIoSplit = _preferences.IsIoSplit;
 
-        var chartResult = await Task.Run(() => new ChartRenderResult(
-            showNetworkChart ? BuildChartImage(networkHistory, historySeconds, isNetworkSplit, isNetwork: true) : SingleChartRenderResult.Empty,
-            showIoChart ? BuildChartImage(ioHistory, historySeconds, isIoSplit, isNetwork: false) : SingleChartRenderResult.Empty));
+        var chartResult = await Task.Run(() => new RealtimeChartRenderResult(
+            showNetworkChart ? BuildChartImage(networkHistory, historySeconds, isNetworkSplit, "#FFF8EF", "#2D8CFF", "#FF8A3D", "#2A6FBB", static value => FormatRate(value)) : SingleChartRenderResult.Empty,
+            showIoChart ? BuildChartImage(ioHistory, historySeconds, isIoSplit, "#F7FBF6", "#17766C", "#D06A43", "#176B5A", static value => FormatRate(value)) : SingleChartRenderResult.Empty,
+            showCpuChart ? BuildChartImage(cpuHistory, historySeconds, splitMode: false, "#FDF7F0", "#C8741C", "#C8741C", "#C8741C", static value => FormatPercent(value)) : SingleChartRenderResult.Empty with { TopLabel = "100.0%" },
+            showMemoryChart ? BuildChartImage(memoryHistory, historySeconds, splitMode: false, "#F4F6FB", "#556B8A", "#556B8A", "#556B8A", static value => FormatBytes(value)) : SingleChartRenderResult.Empty with { TopLabel = "1 KB" }));
 
         if (_isDisposed || renderVersion != Volatile.Read(ref _chartRenderVersion))
         {
@@ -1467,9 +1619,21 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         NetworkChartTopLabel = chartResult.NetworkChart.TopLabel;
         IoChartSource = UpdateChartSource(IoChartSource, chartResult.IoChart);
         IoChartTopLabel = chartResult.IoChart.TopLabel;
+        CpuChartSource = UpdateChartSource(CpuChartSource, chartResult.CpuChart);
+        CpuChartTopLabel = chartResult.CpuChart.TopLabel;
+        MemoryChartSource = UpdateChartSource(MemoryChartSource, chartResult.MemoryChart);
+        MemoryChartTopLabel = chartResult.MemoryChart.TopLabel;
     }
 
-    private static SingleChartRenderResult BuildChartImage(TimedMetricSample[] history, int historySeconds, bool splitMode, bool isNetwork)
+    private static SingleChartRenderResult BuildChartImage(
+        TimedMetricSample[] history,
+        int historySeconds,
+        bool splitMode,
+        string backgroundHex,
+        string primaryHex,
+        string secondaryHex,
+        string totalHex,
+        Func<double, string> topLabelFormatter)
     {
         var nowUtc = DateTime.UtcNow;
         var points = history
@@ -1499,7 +1663,7 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
 
         var plot = new Plot();
         plot.FigureBackground.Color = ScottPlot.Color.FromHex("#FFFDF9");
-        plot.DataBackground.Color = ScottPlot.Color.FromHex(isNetwork ? "#FFF8EF" : "#F7FBF6");
+        plot.DataBackground.Color = ScottPlot.Color.FromHex(backgroundHex);
         plot.Axes.Bottom.Label.Text = string.Empty;
         plot.Axes.Left.Label.Text = string.Empty;
         plot.Axes.Bottom.TickLabelStyle.IsVisible = false;
@@ -1514,25 +1678,25 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         if (splitMode)
         {
             var first = plot.Add.Scatter(xs, primary);
-            first.Color = ScottPlot.Color.FromHex(isNetwork ? "#2D8CFF" : "#17766C");
+            first.Color = ScottPlot.Color.FromHex(primaryHex);
             first.LineWidth = 2;
             first.MarkerSize = 0;
             var second = plot.Add.Scatter(xs, secondary);
-            second.Color = ScottPlot.Color.FromHex(isNetwork ? "#FF8A3D" : "#D06A43");
+            second.Color = ScottPlot.Color.FromHex(secondaryHex);
             second.LineWidth = 2;
             second.MarkerSize = 0;
         }
         else
         {
             var line = plot.Add.Scatter(xs, total);
-            line.Color = ScottPlot.Color.FromHex(isNetwork ? "#2A6FBB" : "#176B5A");
+            line.Color = ScottPlot.Color.FromHex(totalHex);
             line.LineWidth = 2;
             line.MarkerSize = 0;
         }
 
         using var surface = SKSurface.Create(new SKImageInfo(ChartWidth, ChartHeight, SKColorType.Bgra8888, SKAlphaType.Premul));
         plot.Render(surface);
-        return new SingleChartRenderResult(CreateBitmapBuffer(surface, ChartWidth, ChartHeight), FormatRate(yAxisMax));
+        return new SingleChartRenderResult(CreateBitmapBuffer(surface, ChartWidth, ChartHeight), topLabelFormatter(yAxisMax));
     }
 
     private async Task RefreshHistoryChartsAsync()
@@ -2310,6 +2474,11 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         return value.ToString($"F{decimals}", CultureInfo.InvariantCulture) + " " + units[unitIndex];
     }
 
+    private static string FormatPercent(double value)
+    {
+        return $"{Math.Max(0d, value):F1}%";
+    }
+
     private static string FormatBytes(double bytes)
     {
         var value = bytes;
@@ -2691,4 +2860,9 @@ public sealed class ApplicationDetailViewModel : ObservableObject, IDisposable
         public static readonly SingleChartRenderResult Empty = new(null, "1 KB/s");
     }
     private sealed record ChartRenderResult(SingleChartRenderResult NetworkChart, SingleChartRenderResult IoChart);
+    private sealed record RealtimeChartRenderResult(
+        SingleChartRenderResult NetworkChart,
+        SingleChartRenderResult IoChart,
+        SingleChartRenderResult CpuChart,
+        SingleChartRenderResult MemoryChart);
 }
